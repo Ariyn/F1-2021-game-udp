@@ -1,65 +1,45 @@
 package packet
 
-import (
-	"encoding/binary"
-)
-
-type Vector3 struct {
-	X float64
-	Y float64
-	Z float64
-}
-
-type IntegerVector3 struct {
-	X int
-	Y int
-	Z int
-}
+const MotionDataSize = 1464
 
 type CarMotionData struct {
-	WorldPosition   Vector3 `json:"worldPosition"`
-	WorldVelocity   Vector3 `json:"worldVelocity"`
-	WorldForwardDir IntegerVector3
-	WorldRightDir   IntegerVector3
-	GForce          Vector3
-	Rotation        Vector3
+	WorldPositionX     float32 `json:"m_worldPositionX"`     // World space X position
+	WorldPositionY     float32 `json:"m_worldPositionY"`     // World space Y position
+	WorldPositionZ     float32 `json:"m_worldPositionZ"`     // World space Z position
+	WorldVelocityX     float32 `json:"m_worldVelocityX"`     // Velocity in world space X
+	WorldVelocityY     float32 `json:"m_worldVelocityY"`     // Velocity in world space Y
+	WorldVelocityZ     float32 `json:"m_worldVelocityZ"`     // Velocity in world space Z
+	WorldForwardDirX   uint16  `json:"m_worldForwardDirX"`   // World space forward X direction (normalised)
+	WorldForwardDirY   uint16  `json:"m_worldForwardDirY"`   // World space forward Y direction (normalised)
+	WorldForwardDirZ   uint16  `json:"m_worldForwardDirZ"`   // World space forward Z direction (normalised)
+	WorldRightDirX     uint16  `json:"m_worldRightDirX"`     // World space right X direction (normalised)
+	WorldRightDirY     uint16  `json:"m_worldRightDirY"`     // World space right Y direction (normalised)
+	WorldRightDirZ     uint16  `json:"m_worldRightDirZ"`     // World space right Z direction (normalised)
+	GForceLateral      float32 `json:"m_gForceLateral"`      // Lateral G-Force component
+	GForceLongitudinal float32 `json:"m_gForceLongitudinal"` // Longitudinal G-Force component
+	GForceVertical     float32 `json:"m_gForceVertical"`     // Vertical G-Force component
+	Yaw                float32 `json:"m_yaw"`                // Yaw angle in radians
+	Pitch              float32 `json:"m_pitch"`              // Pitch angle in radians
+	Roll               float32 `json:"m_roll"`               // Roll angle in radians
 }
 
 type MotionData struct {
-	CarMotionData [20]CarMotionData
-}
+	Header        Header
+	CarMotionData [22]CarMotionData
 
-func ParseMotionData(b []byte) (m MotionData) {
-	for i := 0; i < 20; i++ {
-		m.CarMotionData[i] = parseCarMotionData(b[i*60 : (i+1)*60])
-	}
-
-	return
-}
-
-func parseCarMotionData(b []byte) (c CarMotionData) {
-	c.WorldPosition.X = float64(parseFloat32(b[:4]))
-	c.WorldPosition.Y = float64(parseFloat32(b[4:8]))
-	c.WorldPosition.Z = float64(parseFloat32(b[8:12]))
-
-	c.WorldVelocity.X = float64(parseFloat32(b[12:16]))
-	c.WorldVelocity.Y = float64(parseFloat32(b[16:20]))
-	c.WorldVelocity.Z = float64(parseFloat32(b[20:24]))
-
-	c.WorldForwardDir.X = int(binary.LittleEndian.Uint16(b[24:26]))
-	c.WorldForwardDir.Y = int(binary.LittleEndian.Uint16(b[26:28]))
-	c.WorldForwardDir.Z = int(binary.LittleEndian.Uint16(b[28:30]))
-
-	c.WorldRightDir.X = int(binary.LittleEndian.Uint16(b[30:32]))
-	c.WorldRightDir.Y = int(binary.LittleEndian.Uint16(b[32:34]))
-	c.WorldRightDir.Z = int(binary.LittleEndian.Uint16(b[34:36]))
-
-	c.GForce.X = float64(parseFloat32(b[36:40]))
-	c.GForce.Y = float64(parseFloat32(b[40:44]))
-	c.GForce.Z = float64(parseFloat32(b[44:48]))
-
-	c.Rotation.X = float64(parseFloat32(b[48:52]))
-	c.Rotation.Y = float64(parseFloat32(b[52:56]))
-	c.Rotation.Z = float64(parseFloat32(b[56:60]))
-	return c
+	SuspensionPosition     [4]float32 `json:"m_suspensionPosition"`     // Note: All wheel arrays have the following order:
+	SuspensionVelocity     [4]float32 `json:"m_suspensionVelocity"`     // RL, RR, FL, FR
+	SuspensionAcceleration [4]float32 `json:"m_suspensionAcceleration"` // RL, RR, FL, FR
+	WheelSpeed             [4]float32 `json:"m_wheelSpeed"`             // Speed of each wheel
+	WheelSlip              [4]float32 `json:"m_wheelSlip"`              // Slip ratio for each wheel
+	LocalVelocityX         float32    `json:"m_localVelocityX"`         // Velocity in local space
+	LocalVelocityY         float32    `json:"m_localVelocityY"`         // Velocity in local space
+	LocalVelocityZ         float32    `json:"m_localVelocityZ"`         // Velocity in local space
+	AngularVelocityX       float32    `json:"m_angularVelocityX"`       // Angular velocity x-component
+	AngularVelocityY       float32    `json:"m_angularVelocityY"`       // Angular velocity y-component
+	AngularVelocityZ       float32    `json:"m_angularVelocityZ"`       // Angular velocity z-component
+	AngularAccelerationX   float32    `json:"m_angularAccelerationX"`   // Angular velocity x-component
+	AngularAccelerationY   float32    `json:"m_angularAccelerationY"`   // Angular velocity y-component
+	AngularAccelerationZ   float32    `json:"m_angularAccelerationZ"`   // Angular velocity z-component
+	FrontWheelsAngle       float32    `json:"m_frontWheelsAngle"`       // Current front wheels angle in radians
 }
