@@ -2,11 +2,11 @@ package packet
 
 import "reflect"
 
-func Sizeof(t reflect.Type) int {
+func Sizeof(t reflect.Value) int {
 	switch t.Kind() {
 	case reflect.Array:
 		//fmt.Println("reflect.Array")
-		if s := Sizeof(t.Elem()); s >= 0 {
+		if s := Sizeof(t.Index(0)); s >= 0 {
 			return s * t.Len()
 		}
 
@@ -14,7 +14,7 @@ func Sizeof(t reflect.Type) int {
 		//fmt.Println("reflect.Struct")
 		sum := 0
 		for i, n := 0, t.NumField(); i < n; i++ {
-			s := Sizeof(t.Field(i).Type)
+			s := Sizeof(t.Field(i))
 			if s < 0 {
 				return -1
 			}
@@ -25,11 +25,42 @@ func Sizeof(t reflect.Type) int {
 	case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 		reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
-		return int(t.Size())
+		return int(t.Type().Size())
 	case reflect.Slice:
 		return 0
 	}
 
 	return -1
-
 }
+
+//func Sizeof(t reflect.Type) int {
+//	switch t.Kind() {
+//	case reflect.Array:
+//		//fmt.Println("reflect.Array")
+//		if s := Sizeof(t.Elem()); s >= 0 {
+//			return s * t.Len()
+//		}
+//
+//	case reflect.Struct:
+//		//fmt.Println("reflect.Struct")
+//		sum := 0
+//		for i, n := 0, t.NumField(); i < n; i++ {
+//			s := Sizeof(t.Field(i).Type)
+//			if s < 0 {
+//				return -1
+//			}
+//			sum += s
+//		}
+//		return sum
+//
+//	case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+//		reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+//		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
+//		return int(t.Size())
+//	case reflect.Slice:
+//		return 0
+//	}
+//
+//	return -1
+//
+//}
