@@ -86,7 +86,7 @@ func ParsePacket(b []byte, model interface{}) (err error) {
 			case reflect.Uint32:
 				elemValue.SetUint(uint64(parseUint32(b[dataIndex : dataIndex+4])))
 			case reflect.Uint64:
-				elemValue.SetUint(uint64(parseUint32(b[dataIndex : dataIndex+8])))
+				elemValue.SetUint(parseUint64(b[dataIndex : dataIndex+8]))
 			case reflect.Float32:
 				elemValue.SetUint(uint64(parseFloat32(b[dataIndex : dataIndex+8])))
 			case reflect.Struct:
@@ -124,7 +124,7 @@ func ParsePacket(b []byte, model interface{}) (err error) {
 		case reflect.Uint32:
 			fieldValue.SetUint(uint64(parseUint32(b[dataIndex : dataIndex+4])))
 		case reflect.Uint64:
-			fieldValue.SetUint(uint64(parseUint32(b[dataIndex : dataIndex+8])))
+			fieldValue.SetUint(parseUint64(b[dataIndex : dataIndex+8]))
 		case reflect.Float32:
 			fieldValue.SetUint(uint64(parseFloat32(b[dataIndex : dataIndex+8])))
 		case reflect.Struct:
@@ -140,26 +140,6 @@ func ParsePacket(b []byte, model interface{}) (err error) {
 	}
 	return
 }
-
-//func ParseHeader(b []byte) (h Header) {
-//	packetFormat := binary.LittleEndian.Uint16(b[:2])
-//	if packetFormat != 2019 {
-//		panic("not f1 2019")
-//	}
-//	h.PacketFormat = int(packetFormat)
-//
-//	majorVersion := parseUint8(b[2])
-//	minorVersion := parseUint8(b[3])
-//	h.GameVersion = strconv.Itoa(int(majorVersion)) + "." + strconv.Itoa(int(minorVersion))
-//
-//	h.PacketVersion = parseUint8(b[4])
-//	h.PacketId = Id(parseUint8(b[5]))
-//	h.SessionUid = binary.LittleEndian.Uint64(b[6:14])
-//	h.SessionTime = parseFloat32(b[14:18])
-//	h.FrameIdentifier = binary.LittleEndian.Uint32(b[18:22])
-//	h.PlayerCarIndex = parseUint8(b[22])
-//	return
-//}
 
 func parseInt8(b byte) (r int8) {
 	return int8(binary.LittleEndian.Uint16(append([]byte{}, b, 0)))
