@@ -15,7 +15,7 @@ const (
 	EventId
 	ParticipantsId
 	CarSetupsId
-	CarTelemetryId
+	CarTelemetryDataId
 	CarStatusId
 )
 

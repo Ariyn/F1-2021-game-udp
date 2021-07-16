@@ -25,6 +25,12 @@ func Test_SessionDataSize(t *testing.T) {
 	assert.Equal(t, size, packet.SessionDataSize)
 }
 
+func Test_CarTelemetryDataSize(t *testing.T) {
+	l := packet.CarTelemetryData{}
+	size := packet.Sizeof(reflect.ValueOf(l))
+	assert.Equal(t, size, packet.CarTelemetryDataSize)
+}
+
 func TestParseModel(t *testing.T) {
 	type _testModel2 struct {
 		C [4]uint8
