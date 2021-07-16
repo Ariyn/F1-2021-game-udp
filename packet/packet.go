@@ -17,6 +17,10 @@ const (
 	CarSetupsId
 	CarTelemetryDataId
 	CarStatusId
+	FinalClassificationId
+	LobbyInfoId
+	CarDamageId
+	SessionHistoryId
 )
 
 // F1-2021
