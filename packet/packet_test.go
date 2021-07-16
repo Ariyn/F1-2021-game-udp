@@ -1,7 +1,7 @@
 package packet_test
 
 import (
-	"github.com/ariyn/f1/packet"
+	"github.com/ariyn/F1-2021-game-udp/packet"
 	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
@@ -17,6 +17,12 @@ func Test_MotionDataSize(t *testing.T) {
 	l := packet.MotionData{}
 	size := packet.Sizeof(reflect.ValueOf(l))
 	assert.Equal(t, size, packet.MotionDataSize)
+}
+
+func Test_SessionDataSize(t *testing.T) {
+	l := packet.SessionData{}
+	size := packet.Sizeof(reflect.ValueOf(l))
+	assert.Equal(t, size, packet.SessionDataSize)
 }
 
 func TestParseModel(t *testing.T) {
