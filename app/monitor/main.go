@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/ariyn/f1/packet"
+	"github.com/ariyn/F1-2021-game-udp/packet"
 	"log"
 	"net"
 	"os"
@@ -36,18 +36,37 @@ func main() {
 			log.Println("buffer size is 0...")
 		}
 		if n > 0 {
-			data := packet.ParsePacket(buf[:n])
+			header, err := packet.ParseHeader(buf[:n])
+			if err != nil {
+				panic(err)
+			}
+
+			var data interface{}
+			switch header.PacketId {
+			case packet.MotionDataId:
+				data = packet.MotionData{}
+				err = packet.ParsePacket(buf[:n], &data)
+				if err != nil {
+					panic(err)
+				}
+			case packet.CarTelemetryDataId:
+				data = packet.CarTelemetryData{}
+				err = packet.ParsePacket(buf[:n], &data)
+				if err != nil {
+					panic(err)
+				}
+			}
 
 			go func(buf []byte) {
-				_, err = files[data.Header.PacketId].Write(buf)
+				_, err = files[header.PacketId].Write(buf)
 				if err != nil {
 					panic(err)
 				}
 			}(buf[:n])
-			counters[data.Header.PacketId]++
+			counters[header.PacketId]++
 
-			if counters[data.Header.PacketId]%100 == 0 {
-				log.Println(data.Header.PacketId, counters[data.Header.PacketId])
+			if counters[header.PacketId]%100 == 0 {
+				log.Println(header.PacketId, counters[header.PacketId])
 			}
 		}
 		if err != nil {
