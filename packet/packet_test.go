@@ -3,6 +3,7 @@ package packet_test
 import (
 	"github.com/ariyn/F1-2021-game-udp/packet"
 	"github.com/stretchr/testify/assert"
+	"log"
 	"reflect"
 	"testing"
 )
@@ -23,6 +24,18 @@ func Test_SessionDataSize(t *testing.T) {
 	l := packet.SessionData{}
 	size := packet.Sizeof(reflect.ValueOf(l))
 	assert.Equal(t, size, packet.SessionDataSize)
+}
+
+func Test_ParticipantDataSize(t *testing.T) {
+	l := packet.ParticipantData{}
+	size := packet.Sizeof(reflect.ValueOf(l))
+	assert.Equal(t, size, packet.ParticipantDataSize)
+}
+
+func Test_EventHeaderDataSize(t *testing.T) {
+	l := packet.EventHeaderData{}
+	size := packet.Sizeof(reflect.ValueOf(l))
+	log.Println(size)
 }
 
 func Test_CarTelemetryDataSize(t *testing.T) {
