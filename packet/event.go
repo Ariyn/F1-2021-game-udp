@@ -35,10 +35,10 @@ type Penalty struct {
 	PenaltyType       uint8
 	InfringementType  uint8
 	VehicleIndex      uint8
-	OtherVehicleIndex uint8
-	Time              uint8
+	OtherVehicleIndex uint8 // if not 255
+	Time              uint8 // if not 255
 	LapNumber         uint8
-	PlacesGained      uint8
+	PlacesGained      uint8 // if not 255
 }
 
 type SpeedTrap struct {

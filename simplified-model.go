@@ -104,3 +104,39 @@ const (
 	DriverStatusOutLap
 	DriverStatusOnTrack
 )
+
+type SimplifiedSession struct {
+	Timestamp             uint64
+	TotalLaps             uint8
+	TrackLength           uint16
+	TrackId               uint8
+	PitSpeedLimit         uint8
+	SessionType           uint8
+	SessionDuration       uint16
+	SessionTimeLeft       uint16
+	Weather               uint8
+	GamePaused            uint8
+	SafetyCarStatus       uint8
+	SeasonLinkIdentifier  uint32
+	WeekendLinkIdentifier uint32
+	SessionLinkIdentifier uint32
+}
+
+func SimplifySession(timestamp int64, session packet.SessionData) SimplifiedSession {
+	return SimplifiedSession{
+		Timestamp:             uint64(timestamp),
+		TotalLaps:             session.TotalLaps,
+		TrackLength:           session.TrackLength,
+		TrackId:               session.TrackId,
+		PitSpeedLimit:         session.PitSpeedLimit,
+		SessionType:           session.SessionType,
+		SessionDuration:       session.SessionDuration,
+		SessionTimeLeft:       session.SessionTimeLeft,
+		Weather:               session.Weather,
+		GamePaused:            session.GamePaused,
+		SafetyCarStatus:       session.SafetyCarStatus,
+		SeasonLinkIdentifier:  session.SeasonLinkIdentifier,
+		WeekendLinkIdentifier: session.WeekendLinkIdentifier,
+		SessionLinkIdentifier: session.SessionLinkIdentifier,
+	}
+}

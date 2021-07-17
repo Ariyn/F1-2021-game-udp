@@ -26,12 +26,15 @@ var packetIds = []int{
 	int(packet.SessionHistoryId),
 }
 
+const GeneralData = uint8(255)
+
 type Logger struct {
 	Path             string
 	storage          string
 	Timestamp        time.Time
 	maximumCarNumber int
 	files            [][]*os.File // [driverIndex][packetId]
+	generalFile      *os.File
 	rawFiles         []*os.File
 }
 
@@ -55,6 +58,11 @@ func NewLogger(p string, t time.Time, maxCarNumber int) (l Logger, err error) {
 	l.files = make([][]*os.File, l.maximumCarNumber)
 	for driverIndex := 0; driverIndex < l.maximumCarNumber; driverIndex++ {
 		l.files[driverIndex] = make([]*os.File, len(packetIds))
+	}
+
+	l.generalFile, err = os.Create(path.Join(l.storage, "general"))
+	if err != nil {
+		panic(err)
 	}
 
 	for i := 0; i < len(packetIds); i++ {
@@ -106,7 +114,13 @@ func (l *Logger) NewLap(lap, driverIndex int) (err error) {
 }
 
 func (l Logger) Write(id uint8, carIndex int, data []byte) (err error) {
-	n, err := l.files[carIndex][id].Write(data)
+	var f *os.File
+	if id == GeneralData {
+		f = l.generalFile
+	} else {
+		f = l.files[carIndex][id]
+	}
+	n, err := f.Write(data)
 	if err != nil {
 		return
 	}

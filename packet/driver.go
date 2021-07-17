@@ -103,3 +103,11 @@ var DriverNameById = map[uint8]string{
 	38:  "Klimek Michalski",
 	75:  "Robert Kubica",
 }
+
+var DriverNameByRacingNumber = map[int]string{
+	44: "Lewis Hamilton",
+	4:  "Lando Norris",
+	3:  "Daniel Riccardo",
+	33: "Max Verstappen",
+	47: "Mick Schumacher",
+}

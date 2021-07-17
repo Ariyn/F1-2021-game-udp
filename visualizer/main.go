@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
 	"fmt"
 	f1 "github.com/ariyn/F1-2021-game-udp"
 	"github.com/ariyn/F1-2021-game-udp/packet"
@@ -10,30 +12,14 @@ import (
 	"image/draw"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"path"
-	"reflect"
-	"strconv"
 	"time"
 
 	"image"
 	"image/png"
 )
-
-type St struct {
-	LapDuration time.Duration
-	Steer       float32
-	Throttle    float32
-	Break       float32
-	Gear        int
-	EngineRpm   int
-	Speed       int
-}
-
-type Lt struct {
-	SectorDurations  []time.Duration
-	TotalLapDuration time.Duration
-}
 
 const (
 	windowsFontPath = "C:\\Windows\\Fonts"
@@ -45,6 +31,7 @@ var (
 )
 
 var storagePath = path.Join(os.TempDir(), "f1")
+var argumentPath string
 
 func init() {
 	s1 := colornames.Indianred
@@ -58,178 +45,74 @@ func init() {
 	sectorColors = append(sectorColors, s1, s2, s3)
 
 	log.SetFlags(log.Llongfile | log.LstdFlags)
+
+	flag.StringVar(&argumentPath, "path", "", "/path/to/f1/session/folder")
 }
 
 func main() {
-	storagePath = path.Join(storagePath, "2021-07-17/114711")
-	err := os.Mkdir(path.Join(storagePath, "image"), 0755)
+	flag.Parse()
+
+	if argumentPath != "" {
+		storagePath = argumentPath
+	} else {
+		storagePath = path.Join(storagePath, "2021-07-17/214143")
+	}
+
+	err := os.Mkdir(path.Join(storagePath, "telemetry-sheet"), 0755)
 	if err != nil && !os.IsExist(err) {
 		panic(err)
 	}
 
-	for lap := 1; lap <= 8; lap++ {
-		drawImage(storagePath, lap)
+	var racingNumbers = []int{3}
+	for _, racingNumber := range racingNumbers {
+		err = os.Mkdir(path.Join(storagePath, "telemetry-sheet", packet.DriverNameByRacingNumber[racingNumber]), 0755)
+		if err != nil && !os.IsExist(err) {
+			panic(err)
+		}
+
+		for lap := 1; lap <= 6; lap++ {
+			drawImage(storagePath, lap, racingNumber)
+		}
 	}
 }
 
-func loadCarTelemetryData(p string, lap int) (sts []St, size int, err error) {
-	b, err := ioutil.ReadFile(path.Join(p, strconv.Itoa(lap), strconv.Itoa(int(packet.CarTelemetryDataId))))
+func getDriverIndex(p string, racingNumber int) (driverIndex int, err error) {
+	b, err := ioutil.ReadFile(path.Join(p, "drivers.json"))
 	if err != nil {
 		return
 	}
 
-	var start time.Time
-	var _t f1.SimplifiedTelemetry
-	err = packet.ParsePacket(b, &_t)
+	drivers := make([]f1.Driver, 0)
+	err = json.Unmarshal(b, &drivers)
 	if err != nil {
 		return
 	}
-
-	start = time.Unix(0, int64(_t.Timestamp))
-	size = packet.Sizeof(reflect.ValueOf(f1.SimplifiedTelemetry{}))
-
-	for i := 0; i < len(b); i += size {
-		var t f1.SimplifiedTelemetry
-		err = packet.ParsePacket(b[i:i+size], &t)
-		if err != nil {
-			return
+	for index, d := range drivers {
+		if d.RaceNumber == racingNumber {
+			return index, nil
 		}
-
-		timestamp := time.Unix(0, int64(t.Timestamp))
-		lapTime := timestamp.Sub(start)
-		sts = append(sts, St{
-			LapDuration: lapTime,
-			Steer:       t.Steer,
-			Throttle:    t.Throttle,
-			Break:       t.Break,
-			Gear:        int(t.Gear),
-			EngineRpm:   int(t.EngineRPM),
-			Speed:       int(t.Speed),
-		})
 	}
 
-	return
+	return -1, fmt.Errorf("No such Driver with racing number %s", racingNumber)
 }
 
-type Mt struct {
-	LapDuration         time.Duration
-	GForce              f1.Float3d
-	WheelSlip           f1.FloatWheels
-	WheelSpeed          f1.FloatWheels
-	AngularVelocity     f1.Float3d
-	AngularAcceleration f1.Float3d
-	Position            f1.Float3d
-	Heading             f1.Float3d
-}
-
-func loadMotionData(p string, lap int) (mts []Mt, err error) {
-	b, err := ioutil.ReadFile(path.Join(p, strconv.Itoa(lap), strconv.Itoa(int(packet.MotionDataId))))
-	if err != nil {
-		return
-	}
-
-	var _t f1.PlayerMotionData
-	err = packet.ParsePacket(b, &_t)
-	if err != nil {
-		return
-	}
-
-	size := packet.Sizeof(reflect.ValueOf(f1.PlayerMotionData{}))
-
-	for i := 0; i < len(b); i += size {
-		var t f1.PlayerMotionData
-		err = packet.ParsePacket(b[i:i+size], &t)
-		if err != nil {
-			return
-		}
-
-		timestamp := time.Duration(t.Timestamp)
-		mts = append(mts, Mt{
-			LapDuration:         timestamp,
-			GForce:              t.GForce,
-			WheelSlip:           t.WheelSlip,
-			WheelSpeed:          t.WheelSpeed,
-			AngularAcceleration: t.AngularAcceleration,
-			AngularVelocity:     t.AngularVelocity,
-			Position:            t.Position,
-			Heading:             t.Heading,
-		})
-	}
-
-	return
-}
-
-func loadLapTelemetries(p string, lap int) (lt Lt, err error) {
-	b, err := ioutil.ReadFile(path.Join(p, strconv.Itoa(lap), strconv.Itoa(int(packet.LapDataId))))
-	if err != nil {
-		return
-	}
-
-	//var start time.Time
-	var _t f1.SimplifiedLap
-	err = packet.ParsePacket(b, &_t)
-	if err != nil {
-		return
-	}
-
-	//start = time.Unix(0, int64(_t.Timestamp))
-	size := packet.Sizeof(reflect.ValueOf(f1.SimplifiedLap{}))
-
-	sector1 := time.Duration(0)
-	sector2 := time.Duration(0)
-	var lapTime time.Duration
-	for i := 0; i < len(b); i += size {
-		var t f1.SimplifiedLap
-		err = packet.ParsePacket(b[i:i+size], &t)
-		if err != nil {
-			return
-		}
-
-		lapNumber := int(t.CurrentLapNumber)
-		if lapNumber != lap {
-			log.Printf("previous lap %#v", t)
-			continue
-		}
-		if t.LapDistance < 0 {
-			continue
-		}
-
-		if t.Sector1Time != 0 && sector1.Milliseconds() == 0 {
-			sector1 = time.Duration(t.Sector1Time) * time.Millisecond
-		}
-		if t.Sector2Time != 0 && sector2.Milliseconds() == 0 {
-			sector2 = time.Duration(t.Sector2Time) * time.Millisecond
-		}
-
-		if t.CurrentLapTime != 0 {
-			lapTime = time.Duration(t.CurrentLapTime) * time.Millisecond
-		}
-
-		// TODO: driver status로 pitstop start, end 알아내기
-		// t.DriverStatus
-	}
-
-	lt = Lt{
-		SectorDurations: []time.Duration{
-			sector1, sector2, lapTime - sector2 - sector1,
-		},
-		TotalLapDuration: lapTime,
-	}
-	return
-}
-
-func drawImage(p string, lap int) {
-	carTelemetries, stSize, err := loadCarTelemetryData(p, lap)
+func drawImage(p string, lap int, racingNumber int) {
+	driverIndex, err := getDriverIndex(p, racingNumber)
 	if err != nil {
 		panic(err)
 	}
 
-	lapTelemetries, err := loadLapTelemetries(p, lap)
+	carTelemetries, stSize, err := loadCarTelemetryData(p, lap, driverIndex)
 	if err != nil {
 		panic(err)
 	}
 
-	motionTelemetries, err := loadMotionData(p, lap)
+	lapTelemetries, err := loadLapTelemetries(p, lap, driverIndex)
+	if err != nil {
+		panic(err)
+	}
+
+	motionTelemetries, err := loadMotionData(p, lap, driverIndex)
 	if err != nil {
 		return
 	}
@@ -253,6 +136,7 @@ func drawImage(p string, lap int) {
 
 	// TODO: drawGrid
 	gap := float32(img.Rect.Max.X) / float32(totalLapTime.Seconds())
+	log.Println("    gap", gap)
 
 	previousSectorDuration := time.Duration(0)
 	for i, sectorDuration := range lapTelemetries.SectorDurations {
@@ -307,7 +191,7 @@ func drawImage(p string, lap int) {
 	ctx.DrawString("FR", 1, 1272)
 	ctx.DrawString("RR", 1, 1290)
 
-	f, err := os.Create(path.Join(p, "image", fmt.Sprintf("test-%d.png", lap)))
+	f, err := os.Create(path.Join(p, "telemetry-sheet", packet.DriverNameByRacingNumber[racingNumber], fmt.Sprintf("%d.png", lap)))
 	if err != nil {
 		panic(err)
 	}
@@ -316,25 +200,6 @@ func drawImage(p string, lap int) {
 		panic(err)
 	}
 }
-
-type StatType int
-type MotionType int
-
-const (
-	StatSteering StatType = iota
-	StatThrottle
-	StatBreak
-	StatGear
-	StatSpeed
-	StatEngineRPM
-)
-
-const (
-	MotionWheelSpeedFrontBias MotionType = iota
-	MotionWheelSpeedRearBias
-	MotionWheelSpeedLeftBias
-	MotionWheelSpeedRightBias
-)
 
 type Option int
 
@@ -345,7 +210,7 @@ const (
 	DrawMiddleGrid
 )
 
-func drawStat(sts []St, typ StatType, height int, options ...Option) image.Image {
+func drawStat(cts []Ct, typ CatTelemetryType, height int, options ...Option) image.Image {
 	drawVerticalGrid := true
 	drawHorizontalGrid := true
 	drawMiddleGrid := false
@@ -364,9 +229,9 @@ func drawStat(sts []St, typ StatType, height int, options ...Option) image.Image
 		}
 	}
 
-	width := len(sts)
+	width := len(cts)
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
-	totalLapTime := sts[width-1].LapDuration - sts[0].LapDuration
+	totalLapTime := cts[width-1].LapDuration - cts[0].LapDuration
 	ctx := gg.NewContextForRGBA(img)
 
 	if drawMiddleGrid {
@@ -403,7 +268,7 @@ func drawStat(sts []St, typ StatType, height int, options ...Option) image.Image
 	hhf := float32(hh)
 	previousY := float64(0)
 
-	for x, t := range sts {
+	for x, t := range cts {
 		var c color.RGBA
 		var y int
 		switch typ {
@@ -495,7 +360,7 @@ func drawMotion(mts []Mt, typ MotionType, height int, options ...Option) image.I
 	height = height - verticalMargin*2
 
 	hh := height / 2
-	//hf := float32(height)
+	hf := float32(height)
 	hhf := float32(hh)
 	previousY := float64(0)
 
@@ -538,6 +403,10 @@ func drawMotion(mts []Mt, typ MotionType, height int, options ...Option) image.I
 		}
 
 		currentY := float64(y)
+		if typ == MotionWheelSpeedLeftBias || typ == MotionWheelSpeedFrontBias || typ == MotionWheelSpeedRearBias || typ == MotionWheelSpeedRightBias {
+			currentY = math.Min(float64(hf), currentY)
+			currentY = math.Max(-float64(hf), currentY)
+		}
 		if x == 0 {
 			ctx.DrawPoint(0, currentY, 1)
 			ctx.SetColor(c)
