@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/binary"
+	f1 "github.com/ariyn/F1-2021-game-udp"
 	"github.com/ariyn/F1-2021-game-udp/packet"
+	"github.com/ariyn/F1-2021-game-udp/visualizer"
 	"log"
 	"math"
 	"net"
@@ -107,15 +109,47 @@ func write(c <-chan packetData, storagePath string) {
 
 			log.Println(uint64(packetData.Timestamp))
 			playerTlm := carTelemetry.CarTelemetries[int(carTelemetry.Header.PlayerCarIndex)]
-
-			b := make([]byte, 25)
-			binary.LittleEndian.PutUint64(b, uint64(packetData.Timestamp))
-			binary.LittleEndian.PutUint32(b[8:], math.Float32bits(playerTlm.Steer))
-			binary.LittleEndian.PutUint32(b[12:], math.Float32bits(playerTlm.Throttle))
-			binary.LittleEndian.PutUint32(b[16:], math.Float32bits(playerTlm.Break))
-			b[20] = uint8(playerTlm.Gear)
-			binary.LittleEndian.PutUint16(b[21:], playerTlm.EngineRPM)
-			binary.LittleEndian.PutUint16(b[23:], playerTlm.Speed)
+			data := visualizer.SimplifiedTelemetry{
+				TimeStamp: uint64(packetData.Timestamp),
+				Steer:     playerTlm.Steer,
+				Throttle:  playerTlm.Throttle,
+				Break:     playerTlm.Break,
+				Gear:      playerTlm.Gear,
+				EngineRPM: playerTlm.EngineRPM,
+				Speed:     playerTlm.Speed,
+				DRS:       playerTlm.DRS,
+				BreaksTemperature: f1.Int16Wheel{
+					RL: int16(playerTlm.BreaksTemperature[0]),
+					RR: int16(playerTlm.BreaksTemperature[1]),
+					FL: int16(playerTlm.BreaksTemperature[2]),
+					FR: int16(playerTlm.BreaksTemperature[3]),
+				},
+				TyresSurfaceTemperature: f1.Int8Wheel{
+					RL: int8(playerTlm.TyresSurfaceTemperature[0]),
+					RR: int8(playerTlm.TyresSurfaceTemperature[1]),
+					FL: int8(playerTlm.TyresSurfaceTemperature[2]),
+					FR: int8(playerTlm.TyresSurfaceTemperature[3]),
+				},
+				TyresInnerTemperature: f1.Int8Wheel{
+					RL: int8(playerTlm.TyresInnerTemperature[0]),
+					RR: int8(playerTlm.TyresInnerTemperature[1]),
+					FL: int8(playerTlm.TyresInnerTemperature[2]),
+					FR: int8(playerTlm.TyresInnerTemperature[3]),
+				},
+				EngineTemperature: 0,
+				TyresPressure: f1.FloatWheels{
+					RL: playerTlm.TyresPressure[0],
+					RR: playerTlm.TyresPressure[1],
+					FL: playerTlm.TyresPressure[2],
+					FR: playerTlm.TyresPressure[3],
+				},
+				SurfaceType: f1.Int8Wheel{
+					RL: int8(playerTlm.SurfaceType[0]),
+					RR: int8(playerTlm.SurfaceType[1]),
+					FL: int8(playerTlm.SurfaceType[2]),
+					FR: int8(playerTlm.SurfaceType[3]),
+				},
+			}
 
 			n, err := f.Write(b)
 			if err != nil {
