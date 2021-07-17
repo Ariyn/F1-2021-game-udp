@@ -24,17 +24,13 @@ func main() {
 		panic(err)
 	}
 
-	files := make([]*os.File, 8)
-	for i := 0; i < 8; i++ {
-		f, err := os.Create("/tmp/f1-" + strconv.Itoa(i))
-		if err != nil {
-			panic(err)
-		}
-
-		files[i] = f
+	storagePath = path.Join(os.TempDir(), "f1")
+	err = os.Mkdir(storagePath, 0755)
+	if err != nil && !os.IsExist(err) {
+		return
 	}
 
-	storagePath = os.TempDir()
+	log.Println(storagePath)
 	c, err := Writer(storagePath)
 	if err != nil {
 		panic(err)
@@ -84,12 +80,15 @@ func write(c <-chan packetData, storagePath string) {
 	if err != nil {
 		panic(err)
 	}
+	defer f.Close()
 
 	for packetData := range c {
 		header, err := packet.ParseHeader(packetData.Buf)
 		if err != nil {
 			panic(err)
 		}
+
+		log.Printf("%#v", header)
 
 		data := packetData.Buf[:packetData.Size]
 		switch header.PacketId {
@@ -106,18 +105,23 @@ func write(c <-chan packetData, storagePath string) {
 				panic(err)
 			}
 
+			log.Println(uint64(packetData.Timestamp))
 			playerTlm := carTelemetry.CarTelemetries[int(carTelemetry.Header.PlayerCarIndex)]
-			b := make([]byte, 0)
+
+			b := make([]byte, 25)
 			binary.LittleEndian.PutUint64(b, uint64(packetData.Timestamp))
-			binary.LittleEndian.PutUint32(b, math.Float32bits(playerTlm.Steer))
-			binary.LittleEndian.PutUint32(b, math.Float32bits(playerTlm.Throttle))
-			binary.LittleEndian.PutUint32(b, math.Float32bits(playerTlm.Break))
+			binary.LittleEndian.PutUint32(b[8:], math.Float32bits(playerTlm.Steer))
+			binary.LittleEndian.PutUint32(b[12:], math.Float32bits(playerTlm.Throttle))
+			binary.LittleEndian.PutUint32(b[16:], math.Float32bits(playerTlm.Break))
+			b[20] = uint8(playerTlm.Gear)
+			binary.LittleEndian.PutUint16(b[21:], playerTlm.EngineRPM)
+			binary.LittleEndian.PutUint16(b[23:], playerTlm.Speed)
 
 			n, err := f.Write(b)
 			if err != nil {
 				panic(err)
 			}
-			if n != 20 {
+			if n != 25 {
 				panic("not enough write")
 			}
 		case packet.LapDataId:
@@ -129,10 +133,11 @@ func write(c <-chan packetData, storagePath string) {
 
 			currentLapNumber := int(lap.DriverLaps[int(lap.Header.PlayerCarIndex)].CurrentLapNumber)
 			if currentLapNumber != oldLapNumber {
-				f, err = createLapFolder(storagePath, currentLapNumber)
+				f, err = createLapFolder(storagePath, currentLapNumber, packet.LapDataId)
 				if err != nil {
 					panic(err)
 				}
+				defer f.Close()
 
 				oldLapNumber = currentLapNumber
 			}
@@ -152,12 +157,12 @@ func write(c <-chan packetData, storagePath string) {
 	}
 }
 
-func createLapFolder(storagePath string, lapNumber int) (f *os.File, err error) {
+func createLapFolder(storagePath string, lapNumber int, dataType uint8) (f *os.File, err error) {
 	newFolder := path.Join(storagePath, strconv.Itoa(lapNumber))
 	err = os.Mkdir(newFolder, 0755)
-	if err != nil {
+	if err != nil && !os.IsExist(err) {
 		return
 	}
 
-	return os.Open(path.Join(newFolder, "data"))
+	return os.Create(path.Join(newFolder, strconv.Itoa(int(dataType))))
 }
