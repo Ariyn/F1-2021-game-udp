@@ -24,6 +24,8 @@ const (
 )
 
 // F1-2021
+var HeaderSize = Sizeof(reflect.ValueOf(Header{}))
+
 type Header struct {
 	PacketFormat            uint16  `json:"m_packetFormat"`
 	MajorGameVersion        uint8   `json:"m_gameMajorVersion"`
@@ -44,7 +46,7 @@ var (
 
 func ParseHeader(b []byte) (h Header, err error) {
 	h = Header{}
-	err = ParsePacket(b, &h)
+	err = ParsePacket(b[:HeaderSize], &h)
 	return
 }
 
@@ -88,7 +90,7 @@ func ParsePacket(b []byte, model interface{}) (err error) {
 			case reflect.Uint64:
 				elemValue.SetUint(parseUint64(b[dataIndex : dataIndex+8]))
 			case reflect.Float32:
-				elemValue.SetUint(uint64(parseFloat32(b[dataIndex : dataIndex+8])))
+				elemValue.SetFloat(float64(parseFloat32(b[dataIndex : dataIndex+8])))
 			case reflect.Struct:
 				fallthrough
 			case reflect.Array:
@@ -126,7 +128,7 @@ func ParsePacket(b []byte, model interface{}) (err error) {
 		case reflect.Uint64:
 			fieldValue.SetUint(parseUint64(b[dataIndex : dataIndex+8]))
 		case reflect.Float32:
-			fieldValue.SetUint(uint64(parseFloat32(b[dataIndex : dataIndex+8])))
+			fieldValue.SetFloat(float64(parseFloat32(b[dataIndex : dataIndex+8])))
 		case reflect.Struct:
 			fallthrough
 		case reflect.Array:
