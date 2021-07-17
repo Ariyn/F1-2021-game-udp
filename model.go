@@ -146,3 +146,40 @@ func GetPlayerMotionData(timestamp int64, m *packet.MotionData) PlayerMotionData
 		FrontWheelsAngle: m.FrontWheelsAngle,
 	}
 }
+
+func GetMotionData(timestamp int64, m packet.CarMotionData) PlayerMotionData {
+	return PlayerMotionData{
+		Timestamp: uint64(timestamp),
+
+		Position: Float3d{
+			X: m.WorldPositionX,
+			Y: m.WorldPositionY,
+			Z: m.WorldPositionZ,
+		},
+		Velocity: Float3d{
+			X: m.WorldVelocityX,
+			Y: m.WorldVelocityY,
+			Z: m.WorldVelocityZ,
+		},
+		ForwardDir: Int163d{
+			X: int16(m.WorldForwardDirX),
+			Y: int16(m.WorldForwardDirY),
+			Z: int16(m.WorldForwardDirZ),
+		},
+		RightDir: Int163d{
+			X: int16(m.WorldRightDirX),
+			Y: int16(m.WorldRightDirY),
+			Z: int16(m.WorldRightDirZ),
+		},
+		GForce: Float3d{
+			X: m.GForceLateral,
+			Y: m.GForceLongitudinal,
+			Z: m.GForceVertical,
+		},
+		Heading: Float3d{
+			X: m.Yaw,
+			Y: m.Roll,
+			Z: m.Pitch,
+		},
+	}
+}

@@ -24,7 +24,7 @@ const (
 )
 
 // F1-2021
-var HeaderSize = Sizeof(reflect.ValueOf(Header{}))
+var HeaderSize = 24
 
 type Header struct {
 	PacketFormat            uint16  `json:"m_packetFormat"`

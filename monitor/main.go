@@ -1,14 +1,15 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	f1 "github.com/ariyn/F1-2021-game-udp"
-	logger "github.com/ariyn/F1-2021-game-udp/logger"
+	"github.com/ariyn/F1-2021-game-udp/logger"
 	"github.com/ariyn/F1-2021-game-udp/packet"
 	"log"
 	"net"
 	"os"
 	"path"
-	"strconv"
 	"time"
 )
 
@@ -30,7 +31,6 @@ func main() {
 		return
 	}
 
-	log.Println(storagePath)
 	c, err := Writer(storagePath)
 	if err != nil {
 		panic(err)
@@ -58,17 +58,13 @@ func main() {
 	close(c)
 }
 
-type packetData struct {
-	Buf       []byte
-	Size      int
-	Timestamp int64
-}
-
 func Writer(storagePath string) (c chan packetData, err error) {
-	l, err := logger.NewLogger(storagePath, time.Now())
+	l, err := logger.NewLogger(storagePath, time.Now(), 22)
 	if err != nil {
 		return
 	}
+
+	fmt.Printf("%s\n\nSave To %s", FormulaLoggerLogo, l.Path)
 
 	c = make(chan packetData, 100)
 	go write(c, l)
@@ -76,12 +72,21 @@ func Writer(storagePath string) (c chan packetData, err error) {
 }
 
 func write(c <-chan packetData, l logger.Logger) {
-	oldLapNumber := -1
-	err := l.NewLap(oldLapNumber)
-	if err != nil {
-		panic(err)
-	}
+	//err := l.NewLap(oldLapNumber, 22)
+	//if err != nil {
+	//	panic(err)
+	//}
 	defer l.Close()
+
+	neverSavedParticipants := true
+
+	driversLap := make([]int, 22)
+	for i := 0; i < 22; i++ {
+		driversLap[i] = -1
+	}
+	driverNames := make([]string, 22)
+
+	eventLogger := log.New(os.Stdout, "[EVENT]", log.Ltime)
 
 	for packetData := range c {
 		header, err := packet.ParseHeader(packetData.Buf)
@@ -95,7 +100,89 @@ func write(c <-chan packetData, l logger.Logger) {
 			panic(err)
 		}
 
+		// TODO: CarStatusData, FinalClassificationData, Event, CarDamageData, PacketSessionHistoryData
 		switch header.PacketId {
+		case packet.EventId:
+			eventHeader := packet.EventHeaderData{}
+			err = packet.ParsePacket(data, &eventHeader)
+			if err != nil {
+				log.Println("packet.Event", err)
+				continue
+			}
+
+			// TODO: make these code into const
+			switch eventHeader.StringCode() {
+			case "SEND":
+				eventLogger.Println("Session Ended!")
+				panic("session end") // TODO: TEMP CODE
+			case "SSTA":
+				eventLogger.Println("Session Started!")
+			case "CHQF":
+				eventLogger.Println("Chequered flag.")
+			case "TMPT":
+				eventLogger.Println("Teammate is in pits.")
+			case "LGOT":
+				event := packet.StartLights{}
+				err = packet.ParsePacket(data[packet.HeaderSize+4:], &event)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				eventLogger.Printf("START LIGHT! %d", int(event.NumberLights))
+			case "FTLP":
+				event := packet.FastestLap{}
+				err = packet.ParsePacket(data[packet.HeaderSize+4:], &event)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				eventLogger.Printf("Fastest Lap by %s - %s!", driverNames[event.VehicleIndex], time.Duration(event.LapTime*1000)*time.Millisecond)
+			case "RTMT":
+				event := packet.Retirement{}
+				err = packet.ParsePacket(data[packet.HeaderSize+4:], &event)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				eventLogger.Printf("Retired %s!", driverNames[event.VehicleIndex])
+			}
+			continue
+		case packet.ParticipantsId:
+			participants := packet.ParticipantData{}
+			err = packet.ParsePacket(data, &participants)
+			if err != nil {
+				panic(err)
+			}
+
+			if neverSavedParticipants {
+				drivers := make([]Driver, 22)
+
+				for carIndex, p := range participants.Participants {
+					name := packet.DriverNameById[p.DriverId]
+					drivers[carIndex] = Driver{
+						Id:       int(p.DriverId),
+						Name:     name,
+						TeamName: packet.TeamNameById[p.TeamId],
+						CarIndex: carIndex,
+						IsAi:     p.IsAiControlled == 1,
+					}
+					driverNames[carIndex] = name
+				}
+				neverSavedParticipants = false
+
+				data, err := json.MarshalIndent(drivers, "", "\t")
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+
+				err = l.WriteText("drivers.json", string(data))
+				if err != nil {
+					log.Println(err)
+				}
+				continue
+			}
+
 		case packet.MotionDataId:
 			motion := packet.MotionData{}
 			err = packet.ParsePacket(data, &motion)
@@ -103,16 +190,30 @@ func write(c <-chan packetData, l logger.Logger) {
 				panic(err)
 			}
 
-			playerMot := f1.GetPlayerMotionData(packetData.Timestamp, &motion)
+			for carIndex, m := range motion.CarMotionData {
+				var data []byte
 
-			data, err := packet.FormatPacket(playerMot)
-			if err != nil {
-				panic(err)
-			}
+				if carIndex == int(motion.Header.PlayerCarIndex) {
+					playerMot := f1.GetPlayerMotionData(packetData.Timestamp, &motion)
 
-			err = l.Write(packet.MotionDataId, data)
-			if err != nil {
-				panic(err)
+					data, err = packet.FormatPacket(playerMot)
+					if err != nil {
+						panic(err)
+					}
+				} else {
+					mot := f1.GetMotionData(packetData.Timestamp, m)
+
+					data, err = packet.FormatPacket(mot)
+					if err != nil {
+						panic(err)
+					}
+				}
+
+				// TODO: l.Write도 goroutine을 통해 비동기로 싱행되게 수정
+				err = l.Write(packet.MotionDataId, carIndex, data)
+				if err != nil {
+					panic(err)
+				}
 			}
 		case packet.CarTelemetryDataId:
 			carTelemetry := packet.CarTelemetryData{}
@@ -121,18 +222,19 @@ func write(c <-chan packetData, l logger.Logger) {
 				panic(err)
 			}
 
-			playerTlm := carTelemetry.Player()
-			smpTlm := f1.SimplifyTelemetry(packetData.Timestamp, playerTlm)
+			for carIndex, tlm := range carTelemetry.CarTelemetries {
+				smpTlm := f1.SimplifyTelemetry(packetData.Timestamp, tlm)
 
-			// TODO: 이거 l.Write가 interface로 바로 SmpTlm을 받을 수 있게 수정
-			data, err := packet.FormatPacket(smpTlm)
-			if err != nil {
-				panic(err)
-			}
+				// TODO: 이거 l.Write가 interface로 바로 SmpTlm을 받을 수 있게 수정
+				data, err := packet.FormatPacket(smpTlm)
+				if err != nil {
+					panic(err)
+				}
 
-			err = l.Write(packet.CarTelemetryDataId, data)
-			if err != nil {
-				panic(err)
+				err = l.Write(packet.CarTelemetryDataId, carIndex, data)
+				if err != nil {
+					panic(err)
+				}
 			}
 		case packet.LapDataId:
 			lap := packet.LapData{}
@@ -141,50 +243,29 @@ func write(c <-chan packetData, l logger.Logger) {
 				panic(err)
 			}
 
-			playerLap := lap.Player()
+			for carIndex, lap := range lap.DriverLaps {
+				smpLap := f1.SimplifyLap(packetData.Timestamp, lap)
+				currentLapNumber := int(smpLap.CurrentLapNumber)
+				if driversLap[carIndex] != currentLapNumber {
+					err = l.NewLap(currentLapNumber, carIndex)
+					if err != nil {
+						panic(err)
+					}
 
-			currentLapNumber := int(playerLap.CurrentLapNumber)
-			if currentLapNumber != oldLapNumber {
-				err = l.NewLap(currentLapNumber)
+					driversLap[carIndex] = currentLapNumber
+				}
+
+				// TODO: 이거 l.Write가 interface로 바로 SmpTlm을 받을 수 있게 수정
+				data, err := packet.FormatPacket(smpLap)
 				if err != nil {
 					panic(err)
 				}
-				oldLapNumber = currentLapNumber
-			}
 
-			smpLap := f1.SimplifyLap(packetData.Timestamp, playerLap)
-
-			data, err := packet.FormatPacket(smpLap)
-			if err != nil {
-				panic(err)
-			}
-
-			err = l.Write(packet.LapDataId, data)
-			if err != nil {
-				panic(err)
+				err = l.Write(packet.LapDataId, carIndex, data)
+				if err != nil {
+					panic(err)
+				}
 			}
 		}
-
-		//go func(buf []byte) {
-		//	_, err = files[header.PacketId].Write(buf)
-		//	if err != nil {
-		//		panic(err)
-		//	}
-		//}(buf[:n])
-		//counters[header.PacketId]++
-		//
-		//if counters[header.PacketId]%100 == 0 {
-		//	log.Println(header.PacketId, counters[header.PacketId])
-		//}
 	}
-}
-
-func createLapFolder(storagePath string, lapNumber int, dataType uint8) (f *os.File, err error) {
-	newFolder := path.Join(storagePath, strconv.Itoa(lapNumber))
-	err = os.Mkdir(newFolder, 0755)
-	if err != nil && !os.IsExist(err) {
-		return
-	}
-
-	return os.Create(path.Join(newFolder, strconv.Itoa(int(dataType))))
 }

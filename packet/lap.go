@@ -37,3 +37,14 @@ type LapData struct {
 func (l LapData) Player() DriverLap {
 	return l.DriverLaps[l.Header.PlayerCarIndex]
 }
+
+func (l LapData) MaxCurrentLap() int {
+	maxLap := uint8(0)
+	for _, lap := range l.DriverLaps {
+		if lap.CurrentLapNumber > maxLap {
+			maxLap = lap.CurrentLapNumber
+		}
+	}
+
+	return int(maxLap)
+}
