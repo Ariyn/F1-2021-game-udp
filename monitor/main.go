@@ -4,7 +4,6 @@ import (
 	f1 "github.com/ariyn/F1-2021-game-udp"
 	logger "github.com/ariyn/F1-2021-game-udp/logger"
 	"github.com/ariyn/F1-2021-game-udp/packet"
-	"github.com/ariyn/F1-2021-game-udp/visualizer"
 	"log"
 	"net"
 	"os"
@@ -123,7 +122,7 @@ func write(c <-chan packetData, l logger.Logger) {
 			}
 
 			playerTlm := carTelemetry.Player()
-			smpTlm := visualizer.SimplifyTelemetry(packetData.Timestamp, playerTlm)
+			smpTlm := f1.SimplifyTelemetry(packetData.Timestamp, playerTlm)
 
 			// TODO: 이거 l.Write가 interface로 바로 SmpTlm을 받을 수 있게 수정
 			data, err := packet.FormatPacket(smpTlm)
@@ -153,7 +152,7 @@ func write(c <-chan packetData, l logger.Logger) {
 				oldLapNumber = currentLapNumber
 			}
 
-			smpLap := visualizer.SimplifyLap(packetData.Timestamp, playerLap)
+			smpLap := f1.SimplifyLap(packetData.Timestamp, playerLap)
 
 			data, err := packet.FormatPacket(smpLap)
 			if err != nil {
