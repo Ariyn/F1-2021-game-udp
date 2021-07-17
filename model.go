@@ -19,6 +19,20 @@ type FloatWheels struct {
 	FR float32
 }
 
+type Int16Wheel struct {
+	RL int16
+	RR int16
+	FL int16
+	FR int16
+}
+
+type Int8Wheel struct {
+	RL int8
+	RR int8
+	FL int8
+	FR int8
+}
+
 type MotionData struct {
 	Position   Float3d
 	Velocity   Float3d
