@@ -38,26 +38,25 @@ func NewLogger(p string, t time.Time) (l Logger, err error) {
 		Timestamp: t,
 	}
 
+	l.storage, err = l.createFolder(l.Path, l.Timestamp.Format("2006-01-02"), l.Timestamp.Format("150405"))
+	if err != nil {
+		return
+	}
+
+	rawStorage, err := l.createFolder(l.storage, "raw")
+	if err != nil {
+		return
+	}
+
 	for i := 0; i < len(packetIds); i++ {
 		l.files = append(l.files, nil)
 
 		var f *os.File
-		f, err = os.Create(path.Join(l.storage, "raw", strconv.Itoa(packetIds[i])))
+		f, err = os.Create(path.Join(rawStorage, strconv.Itoa(packetIds[i])))
 		if err != nil {
 			return
 		}
 		l.rawFiles = append(l.rawFiles, f)
-	}
-
-	err = l.init()
-
-	return
-}
-
-func (l *Logger) init() (err error) {
-	l.storage, err = l.createFolder(l.Path, l.Timestamp.Format("2006-01-02 15:04"))
-	if err != nil {
-		return
 	}
 
 	err = l.NewLap(-1)
@@ -66,7 +65,7 @@ func (l *Logger) init() (err error) {
 
 func (l Logger) createFolder(pathElement ...string) (p string, err error) {
 	p = path.Join(pathElement...)
-	err = os.Mkdir(p, 0755)
+	err = os.MkdirAll(p, 0755)
 	return
 }
 
@@ -77,9 +76,11 @@ func (l *Logger) NewLap(lap int) (err error) {
 	}
 
 	for i, id := range packetIds {
-		err = l.files[i].Close()
-		if err != nil {
-			return
+		if l.files[i] != nil {
+			err = l.files[i].Close()
+			if err != nil {
+				return
+			}
 		}
 		l.files[i], err = os.Create(path.Join(p, strconv.Itoa(id)))
 		if err != nil {
