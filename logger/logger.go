@@ -29,16 +29,24 @@ type Logger struct {
 	storage   string
 	Timestamp time.Time
 	files     []*os.File
+	rawFiles  []*os.File
 }
 
-func NewLogger(path string, t time.Time) (l Logger, err error) {
+func NewLogger(p string, t time.Time) (l Logger, err error) {
 	l = Logger{
-		Path:      path,
+		Path:      p,
 		Timestamp: t,
 	}
 
 	for i := 0; i < len(packetIds); i++ {
 		l.files = append(l.files, nil)
+
+		var f *os.File
+		f, err = os.Create(path.Join(l.storage, "raw", strconv.Itoa(packetIds[i])))
+		if err != nil {
+			return
+		}
+		l.rawFiles = append(l.rawFiles, f)
 	}
 
 	err = l.init()
@@ -69,6 +77,10 @@ func (l *Logger) NewLap(lap int) (err error) {
 	}
 
 	for i, id := range packetIds {
+		err = l.files[i].Close()
+		if err != nil {
+			return
+		}
 		l.files[i], err = os.Create(path.Join(p, strconv.Itoa(id)))
 		if err != nil {
 			return
@@ -86,6 +98,34 @@ func (l Logger) Write(id uint8, data []byte) (err error) {
 
 	if n != len(data) {
 		err = errors.New("not enough write")
+	}
+	return
+}
+
+func (l Logger) WriteRaw(id uint8, data []byte) (err error) {
+	n, err := l.rawFiles[id].Write(data)
+	if err != nil {
+		return
+	}
+
+	if n != len(data) {
+		err = errors.New("not enough write")
+	}
+	return
+}
+
+func (l Logger) Close() (err error) {
+	for _, f := range l.files {
+		err = f.Close()
+		if err != nil && err != os.ErrClosed {
+			return
+		}
+	}
+	for _, f := range l.rawFiles {
+		err = f.Close()
+		if err != nil && err != os.ErrClosed {
+			return
+		}
 	}
 	return
 }

@@ -1,12 +1,11 @@
 package main
 
 import (
-	"encoding/binary"
 	f1 "github.com/ariyn/F1-2021-game-udp"
+	logger "github.com/ariyn/F1-2021-game-udp/logger"
 	"github.com/ariyn/F1-2021-game-udp/packet"
 	"github.com/ariyn/F1-2021-game-udp/visualizer"
 	"log"
-	"math"
 	"net"
 	"os"
 	"path"
@@ -67,22 +66,23 @@ type packetData struct {
 }
 
 func Writer(storagePath string) (c chan packetData, err error) {
-	if _, err = os.Stat(storagePath); os.IsNotExist(err) {
+	l, err := logger.NewLogger(storagePath, time.Now())
+	if err != nil {
 		return
 	}
 
 	c = make(chan packetData, 100)
-	go write(c, storagePath)
+	go write(c, l)
 	return
 }
 
-func write(c <-chan packetData, storagePath string) {
+func write(c <-chan packetData, l logger.Logger) {
 	oldLapNumber := -1
-	f, err := createLapFolder(storagePath, oldLapNumber)
+	err := l.NewLap(oldLapNumber)
 	if err != nil {
 		panic(err)
 	}
-	defer f.Close()
+	defer l.Close()
 
 	for packetData := range c {
 		header, err := packet.ParseHeader(packetData.Buf)
@@ -90,13 +90,28 @@ func write(c <-chan packetData, storagePath string) {
 			panic(err)
 		}
 
-		log.Printf("%#v", header)
-
 		data := packetData.Buf[:packetData.Size]
+		err = l.WriteRaw(header.PacketId, data)
+		if err != nil {
+			panic(err)
+		}
+
 		switch header.PacketId {
 		case packet.MotionDataId:
 			motion := packet.MotionData{}
 			err = packet.ParsePacket(data, &motion)
+			if err != nil {
+				panic(err)
+			}
+
+			playerMot := f1.GetPlayerMotionData(packetData.Timestamp, &motion)
+
+			data, err := packet.FormatPacket(playerMot)
+			if err != nil {
+				panic(err)
+			}
+
+			err = l.Write(packet.MotionDataId, data)
 			if err != nil {
 				panic(err)
 			}
@@ -107,56 +122,18 @@ func write(c <-chan packetData, storagePath string) {
 				panic(err)
 			}
 
-			log.Println(uint64(packetData.Timestamp))
-			playerTlm := carTelemetry.CarTelemetries[int(carTelemetry.Header.PlayerCarIndex)]
-			data := visualizer.SimplifiedTelemetry{
-				TimeStamp: uint64(packetData.Timestamp),
-				Steer:     playerTlm.Steer,
-				Throttle:  playerTlm.Throttle,
-				Break:     playerTlm.Break,
-				Gear:      playerTlm.Gear,
-				EngineRPM: playerTlm.EngineRPM,
-				Speed:     playerTlm.Speed,
-				DRS:       playerTlm.DRS,
-				BreaksTemperature: f1.Int16Wheel{
-					RL: int16(playerTlm.BreaksTemperature[0]),
-					RR: int16(playerTlm.BreaksTemperature[1]),
-					FL: int16(playerTlm.BreaksTemperature[2]),
-					FR: int16(playerTlm.BreaksTemperature[3]),
-				},
-				TyresSurfaceTemperature: f1.Int8Wheel{
-					RL: int8(playerTlm.TyresSurfaceTemperature[0]),
-					RR: int8(playerTlm.TyresSurfaceTemperature[1]),
-					FL: int8(playerTlm.TyresSurfaceTemperature[2]),
-					FR: int8(playerTlm.TyresSurfaceTemperature[3]),
-				},
-				TyresInnerTemperature: f1.Int8Wheel{
-					RL: int8(playerTlm.TyresInnerTemperature[0]),
-					RR: int8(playerTlm.TyresInnerTemperature[1]),
-					FL: int8(playerTlm.TyresInnerTemperature[2]),
-					FR: int8(playerTlm.TyresInnerTemperature[3]),
-				},
-				EngineTemperature: 0,
-				TyresPressure: f1.FloatWheels{
-					RL: playerTlm.TyresPressure[0],
-					RR: playerTlm.TyresPressure[1],
-					FL: playerTlm.TyresPressure[2],
-					FR: playerTlm.TyresPressure[3],
-				},
-				SurfaceType: f1.Int8Wheel{
-					RL: int8(playerTlm.SurfaceType[0]),
-					RR: int8(playerTlm.SurfaceType[1]),
-					FL: int8(playerTlm.SurfaceType[2]),
-					FR: int8(playerTlm.SurfaceType[3]),
-				},
-			}
+			playerTlm := carTelemetry.Player()
+			smpTlm := visualizer.SimplifyTelemetry(packetData.Timestamp, playerTlm)
 
-			n, err := f.Write(b)
+			// TODO: 이거 l.Write가 interface로 바로 SmpTlm을 받을 수 있게 수정
+			data, err := packet.FormatPacket(smpTlm)
 			if err != nil {
 				panic(err)
 			}
-			if n != 25 {
-				panic("not enough write")
+
+			err = l.Write(packet.CarTelemetryDataId, data)
+			if err != nil {
+				panic(err)
 			}
 		case packet.LapDataId:
 			lap := packet.LapData{}
@@ -165,15 +142,27 @@ func write(c <-chan packetData, storagePath string) {
 				panic(err)
 			}
 
-			currentLapNumber := int(lap.DriverLaps[int(lap.Header.PlayerCarIndex)].CurrentLapNumber)
+			playerLap := lap.Player()
+
+			currentLapNumber := int(playerLap.CurrentLapNumber)
 			if currentLapNumber != oldLapNumber {
-				f, err = createLapFolder(storagePath, currentLapNumber, packet.LapDataId)
+				err = l.NewLap(currentLapNumber)
 				if err != nil {
 					panic(err)
 				}
-				defer f.Close()
-
 				oldLapNumber = currentLapNumber
+			}
+
+			smpLap := visualizer.SimplifyLap(packetData.Timestamp, playerLap)
+
+			data, err := packet.FormatPacket(smpLap)
+			if err != nil {
+				panic(err)
+			}
+
+			err = l.Write(packet.LapDataId, data)
+			if err != nil {
+				panic(err)
 			}
 		}
 
