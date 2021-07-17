@@ -61,3 +61,43 @@ func TestParseModel(t *testing.T) {
 		},
 	}, testModel)
 }
+
+func TestFormatPacket(t *testing.T) {
+	type _testModel2 struct {
+		C [4]uint8
+		D uint32
+	}
+	type _testModel3 struct {
+		E int8
+	}
+	type _testModel struct {
+		A uint32
+		B uint8
+		C _testModel2
+		E [4]_testModel3
+	}
+
+	testModel := _testModel{
+		A: 255,
+		B: 2,
+		C: _testModel2{
+			C: [4]uint8{3, 3, 3, 3},
+			D: 6,
+		},
+		E: [4]_testModel3{
+			{8}, {-1}, {8}, {-1},
+		},
+	}
+
+	formattedBytes, err := packet.FormatPacket(testModel)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte{255, 0, 0, 0, 2, 3, 3, 3, 3, 6, 0, 0, 0, 8, 255, 8, 255}, formattedBytes)
+
+	formattedBytes, err = packet.FormatPacket(uint16(8))
+	assert.NoError(t, err)
+	assert.Equal(t, []byte{8, 0}, formattedBytes)
+
+	formattedBytes, err = packet.FormatPacket(_testModel3{8})
+	assert.NoError(t, err)
+	assert.Equal(t, []byte{8}, formattedBytes)
+}

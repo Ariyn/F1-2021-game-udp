@@ -164,9 +164,62 @@ func parseFloat32(b []byte) (r float32) {
 	return math.Float32frombits(binary.LittleEndian.Uint32(b))
 }
 
-type Data interface{}
+func FormatPacket(model interface{}) (b []byte, err error) {
+	value := reflect.ValueOf(model)
+	size := Sizeof(value)
+	b = make([]byte, size)
 
-type Packet struct {
-	Header Header
-	Data   Data
+	switch value.Kind() {
+	case reflect.Array:
+		var elemBytes []byte
+		var index int
+		for i, n := 0, value.Len(); i < n; i++ {
+			elemBytes = nil
+			element := value.Index(i)
+			elemBytes, err = FormatPacket(element.Interface())
+			if err != nil {
+				return
+			}
+
+			b = copyBytes(b, elemBytes, index)
+			index += len(elemBytes)
+		}
+	//case reflect.Slice:
+	case reflect.Struct:
+		var fieldBytes []byte
+		var index int
+		for i, n := 0, value.NumField(); i < n; i++ {
+			fieldBytes = nil
+
+			field := value.Field(i)
+			fieldBytes, err = FormatPacket(field.Interface())
+			if err != nil {
+				return
+			}
+
+			b = copyBytes(b, fieldBytes, index)
+			index += len(fieldBytes)
+		}
+	case reflect.Int8:
+		b[0] = uint8(value.Int())
+	case reflect.Uint8:
+		b[0] = uint8(value.Uint())
+	case reflect.Uint16:
+		binary.LittleEndian.PutUint16(b, uint16(value.Uint()))
+	case reflect.Uint32:
+		binary.LittleEndian.PutUint32(b, uint32(value.Uint()))
+	case reflect.Uint64:
+		binary.LittleEndian.PutUint64(b, value.Uint())
+	case reflect.Float32:
+		binary.LittleEndian.PutUint32(b, math.Float32bits(float32(value.Float())))
+	}
+	return
+}
+
+func copyBytes(dest, src []byte, index int) []byte {
+	for i := 0; i < len(src); i++ {
+		dest[index+i] = src[i]
+	}
+
+	return dest
 }
