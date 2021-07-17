@@ -28,3 +28,7 @@ type CarTelemetryData struct {
 	MFDPanelIndexSecondaryPlayer uint8 `json:"m_mfdPanelIndexSecondaryPlayer"` // See above
 	SuggestGear                  int8  `json:"m_suggestedGear"`                // Suggested gear for the player (1-8) 0 if no gear suggested
 }
+
+func (c CarTelemetryData) Player() CarTelemetry {
+	return c.CarTelemetries[c.Header.PlayerCarIndex]
+}

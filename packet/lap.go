@@ -33,3 +33,7 @@ type LapData struct {
 	Header     Header
 	DriverLaps [22]DriverLap
 }
+
+func (l LapData) Player() DriverLap {
+	return l.DriverLaps[l.Header.PlayerCarIndex]
+}

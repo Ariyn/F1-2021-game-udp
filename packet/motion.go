@@ -43,3 +43,7 @@ type MotionData struct {
 	AngularAccelerationZ   float32    `json:"m_angularAccelerationZ"`   // Angular velocity z-component
 	FrontWheelsAngle       float32    `json:"m_frontWheelsAngle"`       // Current front wheels angle in radians
 }
+
+func (m MotionData) Player() CarMotionData {
+	return m.CarMotionData[m.Header.PlayerCarIndex]
+}
