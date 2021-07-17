@@ -2,7 +2,9 @@ package logger
 
 import (
 	"errors"
+	"fmt"
 	"github.com/ariyn/F1-2021-game-udp/packet"
+	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
@@ -25,17 +27,19 @@ var packetIds = []int{
 }
 
 type Logger struct {
-	Path      string
-	storage   string
-	Timestamp time.Time
-	files     []*os.File
-	rawFiles  []*os.File
+	Path             string
+	storage          string
+	Timestamp        time.Time
+	maximumCarNumber int
+	files            [][]*os.File // [driverIndex][packetId]
+	rawFiles         []*os.File
 }
 
-func NewLogger(p string, t time.Time) (l Logger, err error) {
+func NewLogger(p string, t time.Time, maxCarNumber int) (l Logger, err error) {
 	l = Logger{
-		Path:      p,
-		Timestamp: t,
+		Path:             p,
+		Timestamp:        t,
+		maximumCarNumber: maxCarNumber,
 	}
 
 	l.storage, err = l.createFolder(l.Path, l.Timestamp.Format("2006-01-02"), l.Timestamp.Format("150405"))
@@ -48,9 +52,12 @@ func NewLogger(p string, t time.Time) (l Logger, err error) {
 		return
 	}
 
-	for i := 0; i < len(packetIds); i++ {
-		l.files = append(l.files, nil)
+	l.files = make([][]*os.File, l.maximumCarNumber)
+	for driverIndex := 0; driverIndex < l.maximumCarNumber; driverIndex++ {
+		l.files[driverIndex] = make([]*os.File, len(packetIds))
+	}
 
+	for i := 0; i < len(packetIds); i++ {
 		var f *os.File
 		f, err = os.Create(path.Join(rawStorage, strconv.Itoa(packetIds[i])))
 		if err != nil {
@@ -59,7 +66,13 @@ func NewLogger(p string, t time.Time) (l Logger, err error) {
 		l.rawFiles = append(l.rawFiles, f)
 	}
 
-	err = l.NewLap(-1)
+	for i := 0; i < l.maximumCarNumber; i++ {
+		err = l.NewLap(-1, i)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -69,20 +82,21 @@ func (l Logger) createFolder(pathElement ...string) (p string, err error) {
 	return
 }
 
-func (l *Logger) NewLap(lap int) (err error) {
+func (l *Logger) NewLap(lap, driverIndex int) (err error) {
 	p, err := l.createFolder(l.storage, strconv.Itoa(lap))
-	if err != nil {
+	if err != nil && !os.IsExist(err) {
 		return
 	}
 
-	for i, id := range packetIds {
-		if l.files[i] != nil {
-			err = l.files[i].Close()
+	for packetIndex, id := range packetIds {
+		if l.files[driverIndex][packetIndex] != nil {
+			err = l.files[driverIndex][packetIndex].Close()
 			if err != nil {
 				return
 			}
 		}
-		l.files[i], err = os.Create(path.Join(p, strconv.Itoa(id)))
+
+		l.files[driverIndex][packetIndex], err = os.Create(path.Join(p, fmt.Sprintf("%d-%d", driverIndex, id)))
 		if err != nil {
 			return
 		}
@@ -91,8 +105,8 @@ func (l *Logger) NewLap(lap int) (err error) {
 	return nil
 }
 
-func (l Logger) Write(id uint8, data []byte) (err error) {
-	n, err := l.files[id].Write(data)
+func (l Logger) Write(id uint8, carIndex int, data []byte) (err error) {
+	n, err := l.files[carIndex][id].Write(data)
 	if err != nil {
 		return
 	}
@@ -115,11 +129,17 @@ func (l Logger) WriteRaw(id uint8, data []byte) (err error) {
 	return
 }
 
+func (l Logger) WriteText(name, value string) (err error) {
+	return ioutil.WriteFile(path.Join(l.storage, name), []byte(value), 0755)
+}
+
 func (l Logger) Close() (err error) {
-	for _, f := range l.files {
-		err = f.Close()
-		if err != nil && err != os.ErrClosed {
-			return
+	for _, fs := range l.files {
+		for _, f := range fs {
+			err = f.Close()
+			if err != nil && err != os.ErrClosed {
+				return
+			}
 		}
 	}
 	for _, f := range l.rawFiles {
