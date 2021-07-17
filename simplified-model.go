@@ -1,12 +1,11 @@
-package visualizer
+package F1_2021_game_udp
 
 import (
-	f1 "github.com/ariyn/F1-2021-game-udp"
 	"github.com/ariyn/F1-2021-game-udp/packet"
 )
 
 type SimplifiedTelemetry struct {
-	TimeStamp               uint64
+	Timestamp               uint64
 	Steer                   float32
 	Throttle                float32
 	Break                   float32
@@ -14,17 +13,17 @@ type SimplifiedTelemetry struct {
 	EngineRPM               uint16
 	Speed                   uint16
 	DRS                     uint8
-	BreaksTemperature       f1.Int16Wheel
-	TyresSurfaceTemperature f1.Int8Wheel
-	TyresInnerTemperature   f1.Int8Wheel
+	BreaksTemperature       Int16Wheel
+	TyresSurfaceTemperature Int8Wheel
+	TyresInnerTemperature   Int8Wheel
 	EngineTemperature       uint16
-	TyresPressure           f1.FloatWheels
-	SurfaceType             f1.Int8Wheel
+	TyresPressure           FloatWheels
+	SurfaceType             Int8Wheel
 }
 
 func SimplifyTelemetry(timestamp int64, telemetry packet.CarTelemetry) SimplifiedTelemetry {
 	return SimplifiedTelemetry{
-		TimeStamp: uint64(timestamp),
+		Timestamp: uint64(timestamp),
 		Steer:     telemetry.Steer,
 		Throttle:  telemetry.Throttle,
 		Break:     telemetry.Break,
@@ -32,32 +31,32 @@ func SimplifyTelemetry(timestamp int64, telemetry packet.CarTelemetry) Simplifie
 		EngineRPM: telemetry.EngineRPM,
 		Speed:     telemetry.Speed,
 		DRS:       telemetry.DRS,
-		BreaksTemperature: f1.Int16Wheel{
+		BreaksTemperature: Int16Wheel{
 			RL: int16(telemetry.BreaksTemperature[0]),
 			RR: int16(telemetry.BreaksTemperature[1]),
 			FL: int16(telemetry.BreaksTemperature[2]),
 			FR: int16(telemetry.BreaksTemperature[3]),
 		},
-		TyresSurfaceTemperature: f1.Int8Wheel{
+		TyresSurfaceTemperature: Int8Wheel{
 			RL: int8(telemetry.TyresSurfaceTemperature[0]),
 			RR: int8(telemetry.TyresSurfaceTemperature[1]),
 			FL: int8(telemetry.TyresSurfaceTemperature[2]),
 			FR: int8(telemetry.TyresSurfaceTemperature[3]),
 		},
-		TyresInnerTemperature: f1.Int8Wheel{
+		TyresInnerTemperature: Int8Wheel{
 			RL: int8(telemetry.TyresInnerTemperature[0]),
 			RR: int8(telemetry.TyresInnerTemperature[1]),
 			FL: int8(telemetry.TyresInnerTemperature[2]),
 			FR: int8(telemetry.TyresInnerTemperature[3]),
 		},
 		EngineTemperature: 0,
-		TyresPressure: f1.FloatWheels{
+		TyresPressure: FloatWheels{
 			RL: telemetry.TyresPressure[0],
 			RR: telemetry.TyresPressure[1],
 			FL: telemetry.TyresPressure[2],
 			FR: telemetry.TyresPressure[3],
 		},
-		SurfaceType: f1.Int8Wheel{
+		SurfaceType: Int8Wheel{
 			RL: int8(telemetry.SurfaceType[0]),
 			RR: int8(telemetry.SurfaceType[1]),
 			FL: int8(telemetry.SurfaceType[2]),
