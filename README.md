@@ -1,5 +1,4 @@
 # [WIP]F1 2021 game udp parser
----
 
 This project helps you to improve F1 2021 game skill.
 You can visualize previous game in 2 different datas, "Motion" and "General telemetry"
