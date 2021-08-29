@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"strconv"
 	"time"
 )
 
@@ -73,7 +74,7 @@ func Writer(storagePath string) (ctx context.Context, c chan packetData, err err
 		return
 	}
 
-	fmt.Printf("%s\n\nSave To %s", FormulaLoggerLogo, l.Path)
+	fmt.Printf("%s\n\nSave To %s\n", FormulaLoggerLogo, l.Path)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	c = make(chan packetData, 100)
@@ -130,10 +131,7 @@ func write(cancel context.CancelFunc, c <-chan packetData, l logger.Logger) {
 		timestamp := int64(time.Duration(header.SessionTime*1000) * time.Millisecond)
 
 		data := packetData.Buf[:packetData.Size]
-		err = l.WriteRaw(header.PacketId, data)
-		if err != nil {
-			panic(err)
-		}
+		l.WriteRawAsync(header.PacketId, data)
 
 		// TODO: CarStatusData, FinalClassificationData, Event, CarDamageData, PacketSessionHistoryData
 		switch header.PacketId {
@@ -200,7 +198,7 @@ func write(cancel context.CancelFunc, c <-chan packetData, l logger.Logger) {
 				gained := ""
 				if event.Time != 255 {
 					gained = fmt.Sprintf(" gained %ds", event.Time)
-				} else if event.PlacesGained != 255 {
+				} else if event.PlacesGained != 0 {
 					gained = fmt.Sprintf(" gained %d grid positions", event.PlacesGained)
 				}
 
@@ -221,8 +219,14 @@ func write(cancel context.CancelFunc, c <-chan packetData, l logger.Logger) {
 			if neverSavedParticipants {
 				for carIndex, p := range participants.Participants {
 					name := packet.DriverNameById[p.DriverId]
+					id := p.DriverId
+					if p.IsAiControlled == 0 {
+						log.Println(carIndex, p.GetName())
+						name = "player " + strconv.Itoa(carIndex+1)
+						id = p.NetworkId
+					}
 					drivers[carIndex] = f1.Driver{
-						Id:         int(p.DriverId),
+						Id:         int(id),
 						Name:       name,
 						RaceNumber: int(p.RaceNumber),
 						TeamName:   packet.TeamNameById[p.TeamId],
@@ -260,11 +264,8 @@ func write(cancel context.CancelFunc, c <-chan packetData, l logger.Logger) {
 					}
 				}
 
-				// TODO: l.Write도 goroutine을 통해 비동기로 싱행되게 수정
-				err = l.Write(packet.MotionDataId, carIndex, data)
-				if err != nil {
-					panic(err)
-				}
+				// TODO: goroutine error handling
+				l.WriteAsync(packet.MotionDataId, carIndex, data)
 			}
 		case packet.CarTelemetryDataId:
 			carTelemetry := packet.CarTelemetryData{}
@@ -282,10 +283,7 @@ func write(cancel context.CancelFunc, c <-chan packetData, l logger.Logger) {
 					panic(err)
 				}
 
-				err = l.Write(packet.CarTelemetryDataId, carIndex, data)
-				if err != nil {
-					panic(err)
-				}
+				l.WriteAsync(packet.CarTelemetryDataId, carIndex, data)
 			}
 		case packet.LapDataId:
 			lap := packet.LapData{}
@@ -312,10 +310,7 @@ func write(cancel context.CancelFunc, c <-chan packetData, l logger.Logger) {
 					panic(err)
 				}
 
-				err = l.Write(packet.LapDataId, carIndex, data)
-				if err != nil {
-					panic(err)
-				}
+				l.WriteAsync(packet.LapDataId, carIndex, data)
 			}
 		case packet.SessionDataId:
 			session := packet.SessionData{}
@@ -330,10 +325,7 @@ func write(cancel context.CancelFunc, c <-chan packetData, l logger.Logger) {
 				panic(err)
 			}
 
-			err = l.Write(logger.GeneralData, 0, data)
-			if err != nil {
-				panic(err)
-			}
+			l.WriteAsync(logger.GeneralData, 0, data)
 		}
 	}
 }

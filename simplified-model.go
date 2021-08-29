@@ -75,6 +75,7 @@ type SimplifiedLap struct {
 	CurrentLapNumber uint8
 	Sector           uint8
 	DriverStatus     uint8
+	//PitLaneTimeInLane uint16
 }
 
 func SimplifyLap(timestamp int64, lap packet.DriverLap) SimplifiedLap {
@@ -88,6 +89,7 @@ func SimplifyLap(timestamp int64, lap packet.DriverLap) SimplifiedLap {
 		CurrentLapNumber: lap.CurrentLapNumber,
 		Sector:           lap.Sector,
 		DriverStatus:     lap.DriverStatus,
+		//PitLaneTimeInLane: lap.PitLaneTimeInLane,
 	}
 }
 
@@ -103,6 +105,8 @@ const (
 	DriverStatusInLap
 	DriverStatusOutLap
 	DriverStatusOnTrack
+
+	DriverStatusNull DriverStatus = -1
 )
 
 type SimplifiedSession struct {

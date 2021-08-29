@@ -131,6 +131,26 @@ func (l Logger) Write(id uint8, carIndex int, data []byte) (err error) {
 	return
 }
 
+func (l Logger) WriteAsync(id uint8, carIndex int, data []byte) {
+	go func(id uint8, carIndex int, data []byte) {
+		var f *os.File
+		if id == GeneralData {
+			f = l.generalFile
+		} else {
+			f = l.files[carIndex][id]
+		}
+		n, err := f.Write(data)
+		if err != nil {
+			return
+		}
+
+		if n != len(data) {
+			err = errors.New("not enough write")
+		}
+	}(id, carIndex, data)
+	return
+}
+
 func (l Logger) WriteRaw(id uint8, data []byte) (err error) {
 	n, err := l.rawFiles[id].Write(data)
 	if err != nil {
@@ -143,8 +163,27 @@ func (l Logger) WriteRaw(id uint8, data []byte) (err error) {
 	return
 }
 
+func (l Logger) WriteRawAsync(id uint8, data []byte) {
+	go func(id uint8, data []byte) {
+		n, err := l.rawFiles[id].Write(data)
+		if err != nil {
+			return
+		}
+
+		if n != len(data) {
+			err = errors.New("not enough write")
+		}
+	}(id, data)
+	return
+}
+
 func (l Logger) WriteText(name, value string) (err error) {
 	return ioutil.WriteFile(path.Join(l.storage, name), []byte(value), 0755)
+}
+
+func (l Logger) WriteTextAsync(name, value string) {
+	go ioutil.WriteFile(path.Join(l.storage, name), []byte(value), 0755)
+	return
 }
 
 func (l Logger) Close() (err error) {

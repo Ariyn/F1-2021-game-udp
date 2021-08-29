@@ -177,7 +177,7 @@ func GetMotionData(timestamp int64, m packet.CarMotionData) PlayerMotionData {
 			Z: m.GForceVertical,
 		},
 		Heading: Float3d{
-			X: m.Yaw,
+			X: m.Yaw, // TODO: yaw -> Z, roll -> X, pitch -> Y
 			Y: m.Roll,
 			Z: m.Pitch,
 		},
