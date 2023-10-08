@@ -30,7 +30,7 @@ type SessionData struct {
 	TrackId                      uint8                     `json:"m_trackId"`                   // -1 for unknown, 0-21 for tracks, see appendix
 	FormulaId                    uint8                     `json:"m_formula"`                   // Formula, 0 = F1 Modern, 1 = F1 Classic, 2 = F2, 3 = F1 Generic
 	SessionTimeLeft              uint16                    `json:"m_sessionTimeLeft"`           // Time left in session in seconds
-	SessionDuration              uint16                    `json:"m_sessionDuration"`           // Session duration in seconds
+	SessionDuration              uint16                    `json:"m_sessionDuration"`           // SetSession duration in seconds
 	PitSpeedLimit                uint8                     `json:"m_pitSpeedLimit"`             // Pit speed limit in kilometres per hour
 	GamePaused                   uint8                     `json:"m_gamePaused"`                // Whether the game is paused
 	IsSpectating                 uint8                     `json:"m_isSpectating"`              // Whether the player is spectating

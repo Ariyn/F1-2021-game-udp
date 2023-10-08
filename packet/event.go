@@ -8,7 +8,7 @@ type EventType interface {
 
 type FastestLap struct {
 	VehicleIndex uint8   `json:"vehicleIdx"` // Vehicle index of car achieving fastest lap
-	LapTime      float32 `json:"lapTime"`    // Lap time is in seconds
+	LapTime      float32 `json:"lapTime"`    // SetLap time is in seconds
 }
 
 func (FastestLap) StringCode() string {

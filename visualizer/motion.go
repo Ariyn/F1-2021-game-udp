@@ -18,6 +18,13 @@ const (
 	MotionWheelSpeedRearBias
 	MotionWheelSpeedLeftBias
 	MotionWheelSpeedRightBias
+	MotionGForceLatitude
+	MotionGForceLongitude
+	MotionYaw
+	MotionWheelSlipFL
+	MotionWheelSlipFR
+	MotionWheelSlipRL
+	MotionWheelSlipRR
 )
 
 type Mt struct {
@@ -45,7 +52,7 @@ func loadMotionData(p string, lap, racingNumber int) (mts []Mt, err error) {
 
 	size := packet.Sizeof(reflect.ValueOf(f1.PlayerMotionData{}))
 
-	for i := 0; i < len(b); i += size {
+	for i := 0; i+size < len(b); i += size {
 		var t f1.PlayerMotionData
 		err = packet.ParsePacket(b[i:i+size], &t)
 		if err != nil {

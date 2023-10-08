@@ -8,63 +8,37 @@ import (
 	"github.com/ariyn/F1-2021-game-udp/logger"
 	"github.com/ariyn/F1-2021-game-udp/packet"
 	"log"
-	"net"
 	"os"
-	"path"
 	"strconv"
 	"time"
 )
 
-var storagePath = "/tmp"
 var visualizerPath = ""
 
 func main() {
-	//visualizerPath = "C:\\Users\\ariyn\\Documents\\go\\src\\github.com\\ariyn\\F1-2021-game-udp\\visualizer"
-	network, err := net.ListenPacket("udp", "0.0.0.0:1278")
+	//db, err := sql.Open("sqlite3", "/tmp/f1")
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+
+	//lgr, err := logger.NewDBLogger(db)
+	lgr, err := logger.NewDBLogger()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	storagePath = path.Join(os.TempDir(), "f1")
-	err = os.Mkdir(storagePath, 0755)
-	if err != nil && !os.IsExist(err) {
-		return
-	}
-
-	ctx, c, err := Writer(storagePath)
+	listener, err := packet.NewListener(context.Background(), packet.DefaultNetwork, packet.DefaultAddress, lgr)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	for {
-		buf := make([]byte, 2048) // all telemetry data is under 2048 bytes.
-		n, _, err := network.ReadFrom(buf)
-		if err != nil {
-			panic(err)
-		}
+	log.SetFlags(log.LstdFlags | log.Llongfile)
+	fmt.Println("monitor start")
+	defer fmt.Println("monitor ended")
 
-		if n == 0 {
-			log.Println("buffer size is 0...")
-			continue
-		}
-
-		select {
-		case c <- packetData{
-			Buf:  buf,
-			Size: n,
-		}:
-		case <-ctx.Done():
-			log.Println("new session will be started")
-
-			ctx, c, err = Writer(storagePath)
-			if err != nil {
-				panic(err)
-			}
-		}
+	if err := listener.Run(); err != nil {
+		log.Fatal(err)
 	}
-
-	// TODO: unreachable code
-	close(c)
 }
 
 // TODO: use packet models only. let visualizer parse every raw data
@@ -146,7 +120,7 @@ func write(cancel context.CancelFunc, c <-chan packetData, l logger.Logger) {
 			// TODO: make these code into const
 			switch eventHeader.StringCode() {
 			case "SEND":
-				eventLogger.Println("Session Ended!")
+				eventLogger.Println("SetSession Ended!")
 				// TODO: call visualizer
 				if visualizerPath != "" {
 					//err = exec.Command("go", "run", "--path", visualizerPath).Run()
@@ -156,7 +130,7 @@ func write(cancel context.CancelFunc, c <-chan packetData, l logger.Logger) {
 				}
 				return
 			case "SSTA":
-				eventLogger.Println("Session Started!")
+				eventLogger.Println("SetSession Started!")
 			case "CHQF":
 				eventLogger.Println("Chequered flag.")
 			case "TMPT":
@@ -178,7 +152,7 @@ func write(cancel context.CancelFunc, c <-chan packetData, l logger.Logger) {
 					log.Println(err)
 					continue
 				}
-				eventLogger.Printf("Fastest Lap by %s - %s!", drivers[event.VehicleIndex].Name, time.Duration(event.LapTime*1000)*time.Millisecond)
+				eventLogger.Printf("Fastest SetLap by %s - %s!", drivers[event.VehicleIndex].Name, time.Duration(event.LapTime*1000)*time.Millisecond)
 			case "RTMT":
 				event := packet.Retirement{}
 				err = packet.ParsePacket(data[packet.HeaderSize+4:], &event)

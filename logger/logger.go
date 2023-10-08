@@ -11,21 +11,6 @@ import (
 	"time"
 )
 
-var packetIds = []int{
-	int(packet.MotionDataId),
-	int(packet.SessionDataId),
-	int(packet.LapDataId),
-	int(packet.EventId),
-	int(packet.ParticipantsId),
-	int(packet.CarSetupsId),
-	int(packet.CarTelemetryDataId),
-	int(packet.CarStatusId),
-	int(packet.FinalClassificationId),
-	int(packet.LobbyInfoId),
-	int(packet.CarDamageId),
-	int(packet.SessionHistoryId),
-}
-
 const GeneralData = uint8(255)
 
 type Logger struct {
@@ -57,7 +42,7 @@ func NewLogger(p string, t time.Time, maxCarNumber int) (l Logger, err error) {
 
 	l.files = make([][]*os.File, l.maximumCarNumber)
 	for driverIndex := 0; driverIndex < l.maximumCarNumber; driverIndex++ {
-		l.files[driverIndex] = make([]*os.File, len(packetIds))
+		l.files[driverIndex] = make([]*os.File, len(packet.Ids))
 	}
 
 	l.generalFile, err = os.Create(path.Join(l.storage, "general"))
@@ -65,9 +50,9 @@ func NewLogger(p string, t time.Time, maxCarNumber int) (l Logger, err error) {
 		panic(err)
 	}
 
-	for i := 0; i < len(packetIds); i++ {
+	for i := 0; i < len(packet.Ids); i++ {
 		var f *os.File
-		f, err = os.Create(path.Join(rawStorage, strconv.Itoa(packetIds[i])))
+		f, err = os.Create(path.Join(rawStorage, strconv.Itoa(packet.Ids[i])))
 		if err != nil {
 			return
 		}
@@ -96,7 +81,7 @@ func (l *Logger) NewLap(lap, driverIndex int) (err error) {
 		return
 	}
 
-	for packetIndex, id := range packetIds {
+	for packetIndex, id := range packet.Ids {
 		if l.files[driverIndex][packetIndex] != nil {
 			err = l.files[driverIndex][packetIndex].Close()
 			if err != nil {

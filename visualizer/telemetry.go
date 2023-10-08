@@ -38,14 +38,7 @@ func loadCarTelemetryData(p string, lap, racingNumber int) (cts []Ct, size int, 
 		return
 	}
 
-	var start time.Time
-	var _t f1.SimplifiedTelemetry
-	err = packet.ParsePacket(b, &_t)
-	if err != nil {
-		return
-	}
-
-	start = time.Unix(0, int64(_t.Timestamp))
+	//start = time.Unix(0, int64(_t.Timestamp))
 	size = packet.Sizeof(reflect.ValueOf(f1.SimplifiedTelemetry{}))
 
 	for i := 0; i < len(b); i += size {
@@ -55,10 +48,10 @@ func loadCarTelemetryData(p string, lap, racingNumber int) (cts []Ct, size int, 
 			return
 		}
 
-		timestamp := time.Unix(0, int64(t.Timestamp))
-		lapTime := timestamp.Sub(start)
+		//timestamp := time.Unix(0, int64(t.Timestamp))
+		//lapTime := timestamp.Sub(start)
 		cts = append(cts, Ct{
-			LapDuration: lapTime,
+			LapDuration: time.Duration(t.Timestamp),
 			Steer:       t.Steer,
 			Throttle:    t.Throttle,
 			Break:       t.Break,

@@ -13,11 +13,17 @@ import (
 )
 
 type Lt struct {
-	SectorDurations  []time.Duration
-	TotalLapDuration time.Duration
+	Timestamp        time.Duration
+	CurrentLapTime   time.Duration
+	Sector1Time      time.Duration
+	Sector2Time      time.Duration
+	LapDistance      float32
+	CurrentLapNumber int
+	Sector           int
+	DriverStatus     f1.DriverStatus
 }
 
-func loadLapTelemetries(p string, lap, racingNumber int) (lt Lt, err error) {
+func loadLapTelemetries(p string, lap, racingNumber int) (lts []Lt, err error) {
 	b, err := ioutil.ReadFile(path.Join(p, strconv.Itoa(lap), fmt.Sprintf("%d-%d", racingNumber, packet.LapDataId)))
 	if err != nil {
 		return
@@ -33,9 +39,6 @@ func loadLapTelemetries(p string, lap, racingNumber int) (lt Lt, err error) {
 	//start = time.Unix(0, int64(_t.Timestamp))
 	size := packet.Sizeof(reflect.ValueOf(f1.SimplifiedLap{}))
 
-	sector1 := time.Duration(0)
-	sector2 := time.Duration(0)
-	var lapTime time.Duration
 	for i := 0; i < len(b); i += size {
 		var t f1.SimplifiedLap
 		err = packet.ParsePacket(b[i:i+size], &t)
@@ -46,32 +49,23 @@ func loadLapTelemetries(p string, lap, racingNumber int) (lt Lt, err error) {
 		lapNumber := int(t.CurrentLapNumber)
 		if lapNumber != lap {
 			log.Printf("previous lap %#v", t)
-			continue
+			//continue
 		}
 		if t.LapDistance < 0 {
 			continue
 		}
 
-		if t.Sector1Time != 0 && sector1.Milliseconds() == 0 {
-			sector1 = time.Duration(t.Sector1Time) * time.Millisecond
-		}
-		if t.Sector2Time != 0 && sector2.Milliseconds() == 0 {
-			sector2 = time.Duration(t.Sector2Time) * time.Millisecond
-		}
-
-		if t.CurrentLapTime != 0 {
-			lapTime = time.Duration(t.CurrentLapTime) * time.Millisecond
-		}
-
-		// TODO: driver status로 pitstop start, end 알아내기
-		// t.DriverStatus
+		lts = append(lts, Lt{
+			Timestamp:        time.Duration(t.Timestamp),
+			CurrentLapTime:   time.Duration(t.CurrentLapTime) * time.Millisecond,
+			Sector1Time:      time.Duration(t.Sector1Time) * time.Millisecond,
+			Sector2Time:      time.Duration(t.Sector2Time) * time.Millisecond,
+			LapDistance:      t.LapDistance,
+			CurrentLapNumber: int(t.CurrentLapNumber),
+			Sector:           int(t.Sector),
+			DriverStatus:     f1.DriverStatus(t.DriverStatus),
+		})
 	}
 
-	lt = Lt{
-		SectorDurations: []time.Duration{
-			sector1, sector2, lapTime - sector2 - sector1,
-		},
-		TotalLapDuration: lapTime,
-	}
 	return
 }

@@ -23,6 +23,21 @@ const (
 	SessionHistoryId
 )
 
+var Ids = []int{
+	int(MotionDataId),
+	int(SessionDataId),
+	int(LapDataId),
+	int(EventId),
+	int(ParticipantsId),
+	int(CarSetupsId),
+	int(CarTelemetryDataId),
+	int(CarStatusId),
+	int(FinalClassificationId),
+	int(LobbyInfoId),
+	int(CarDamageId),
+	int(SessionHistoryId),
+}
+
 // F1-2021
 var HeaderSize = 24
 
