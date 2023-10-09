@@ -2,7 +2,9 @@
 <canvas id="canvas" width="500px" height="500px" style="width:500px; height: 500px; border: 1px solid black;"></canvas>
 <!-- <span id="x"></span>
 <span id="z"></span> -->
+<span id="currentLap" style="width: 10em; background-color:gray; color: white;"></span><br/>
 <span id="delta" style="width: 10em; background-color:gray"></span>
+
 </br>
 <button id="start"> start </button>
 <button id="stop">stop</button>
@@ -23,6 +25,12 @@ offsetY <input type="number" id="offsetY" value=3>
             height: 1207,
             offsetX: 5,
             offsetY: 3,
+        },
+        spain: {
+            width:  987,
+            height: 1177,
+            offsetX:36,
+            offsetY:17,
         }
     }
 
@@ -47,7 +55,8 @@ offsetY <input type="number" id="offsetY" value=3>
 
     const img = new Image()
     img.onload = drawDefault
-    img.src = "./bahrain.svg"
+    img.src = "./spain.svg"
+    // img.src = "./bahrain.svg"
 
     const drawCircle = (x, y) => {
         ctx.beginPath()
@@ -68,19 +77,27 @@ offsetY <input type="number" id="offsetY" value=3>
         previousCoordinate.push({x:data.WorldX, z:data.WorldZ})
     }
 
+    const loadPreviousAndDraw = async(nuber) => {
+        const data = await $.getJSON(`http://localhost:1323?lap=${lap}`)
+        console.log(data)
+    }
+
     const loadAndDraw = async() => {
         const data = await $.getJSON("http://localhost:1323")
 
         previousCoordinate.push({x:data.WorldX, z:data.WorldZ})
         if(lapNumber != data.LapNumber) {
             lapNumber = data.LapNumber
-            redraw()
+            drawDefault()
         }
         
-        const box = circuitBox.bahrain
+        const box = circuitBox.spain
+        // const box = circuitBox.bahrain
         const {x, y} = calculate(data.WorldX, data.WorldZ, box.width, box.height, box.offsetX, box.offsetY)
 
+        $("#currentLap").text(data.LapNumber.toFixed(0))
         $("#delta").text(data.LapDeltaTime.toFixed(3))
+
         if(data.LapDeltaTime > 0.3) {
             $("#delta").css("background-color", "red")
             $("#delta").css("color", "white")
@@ -100,14 +117,13 @@ offsetY <input type="number" id="offsetY" value=3>
         }
 
         ctx.beginPath()
-        ctx.arc(x, y, 3, 0, 2*Math.PI)
+        ctx.arc(x, y, 5, 0, 2*Math.PI)
         ctx.fill()
     }
 
     const calculate = (x, z, width, height, offsetX, offsetY) => {
         const canvasX = (x + width/2)*(canvas.width/width) + offsetX
         const canvasY = (z + height/2)*(canvas.height/height) + offsetY
-
         return {x:canvasX, y:canvasY}
     }
 
@@ -119,7 +135,7 @@ offsetY <input type="number" id="offsetY" value=3>
             const offsetX = Number($("input#offsetX").val())
             const height = Number($("input#height").val())
             const offsetY = Number($("input#offsetY").val())
-            const {x:canvasX, y:canvasY} = calculate(data.x, data.z, width, offsetX, height, offsetY)
+            const {x:canvasX, y:canvasY} = calculate(data.x, data.z, width, height, offsetX, offsetY)
 
             ctx.fillStyle = "red"
             ctx.beginPath()
