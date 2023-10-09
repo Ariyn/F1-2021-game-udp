@@ -19,6 +19,8 @@ type WeatherForecastSample struct {
 
 }
 
+var _ PacketData = (*SessionData)(nil)
+
 type SessionData struct {
 	Header                       Header
 	Weather                      uint8                     `json:"m_weather"`                   // Weather - 0 = clear, 1 = light cloud, 2 = overcast, 3 = light rain, 4 = heavy rain, 5 = storm
@@ -59,4 +61,12 @@ type SessionData struct {
 	DRSAssist                    uint8                     `json:"m_DRSAssist"`                 // 0 = off, 1 = on
 	DynamicRacingLine            uint8                     `json:"m_dynamicRacingLine"`         // 0 = off, 1 = corners only, 2 = full
 	DynamicRacingLineType        uint8                     `json:"m_dynamicRacingLineType"`     // 0 = 2D, 1 = 3D
+}
+
+func (s SessionData) GetHeader() Header {
+	return s.Header
+}
+
+func (s SessionData) Id() Id {
+	return SessionDataId
 }

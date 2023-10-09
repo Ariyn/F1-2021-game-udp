@@ -23,6 +23,8 @@ type CarMotionData struct {
 	Roll               float32 `json:"m_roll"`               // Roll angle in radians
 }
 
+var _ PacketData = (*MotionData)(nil)
+
 type MotionData struct {
 	Header        Header
 	CarMotionData [22]CarMotionData
@@ -42,6 +44,14 @@ type MotionData struct {
 	AngularAccelerationY   float32    `json:"m_angularAccelerationY"`   // Angular velocity y-component
 	AngularAccelerationZ   float32    `json:"m_angularAccelerationZ"`   // Angular velocity z-component
 	FrontWheelsAngle       float32    `json:"m_frontWheelsAngle"`       // Current front wheels angle in radians
+}
+
+func (m MotionData) GetHeader() Header {
+	return m.Header
+}
+
+func (m MotionData) Id() Id {
+	return MotionDataId
 }
 
 func (m MotionData) Player() CarMotionData {

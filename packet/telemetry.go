@@ -21,12 +21,22 @@ type CarTelemetry struct {
 	SurfaceType             [4]uint8
 }
 
+var _ PacketData = (*CarTelemetryData)(nil)
+
 type CarTelemetryData struct {
 	Header                       Header
 	CarTelemetries               [22]CarTelemetry
 	MFDPanelIndex                uint8 `json:"m_mfdPanelIndex"`                // Index of MFD panel open - 255 = MFD closed, Single player, race – 0 = Car setup, 1 = Pits, 2 = Damage, 3 =  Engine, 4 = Temperatures, May vary depending on game mode
 	MFDPanelIndexSecondaryPlayer uint8 `json:"m_mfdPanelIndexSecondaryPlayer"` // See above
 	SuggestGear                  int8  `json:"m_suggestedGear"`                // Suggested gear for the player (1-8) 0 if no gear suggested
+}
+
+func (c CarTelemetryData) GetHeader() Header {
+	return c.Header
+}
+
+func (c CarTelemetryData) Id() Id {
+	return CarTelemetryDataId
 }
 
 func (c CarTelemetryData) Player() CarTelemetry {

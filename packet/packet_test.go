@@ -33,7 +33,7 @@ func Test_ParticipantDataSize(t *testing.T) {
 }
 
 func Test_EventHeaderDataSize(t *testing.T) {
-	l := packet.EventHeaderData{}
+	l := packet.EventData{}
 	size := packet.Sizeof(reflect.ValueOf(l))
 	log.Println(size)
 }

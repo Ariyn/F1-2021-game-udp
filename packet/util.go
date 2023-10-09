@@ -5,13 +5,11 @@ import "reflect"
 func Sizeof(t reflect.Value) int {
 	switch t.Kind() {
 	case reflect.Array:
-		//fmt.Println("reflect.Array")
 		if s := Sizeof(t.Index(0)); s >= 0 {
 			return s * t.Len()
 		}
 
 	case reflect.Struct:
-		//fmt.Println("reflect.Struct")
 		sum := 0
 		for i, n := 0, t.NumField(); i < n; i++ {
 			s := Sizeof(t.Field(i))

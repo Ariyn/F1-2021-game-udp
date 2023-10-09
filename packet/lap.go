@@ -29,9 +29,19 @@ type DriverLap struct {
 	PitStopShouldServePenalty     uint8   `json:"m_pitStopShouldServePen"`       // Whether the car should serve a penalty at this stop
 }
 
+var _ PacketData = (*LapData)(nil)
+
 type LapData struct {
 	Header     Header
 	DriverLaps [22]DriverLap
+}
+
+func (l LapData) GetHeader() Header {
+	return l.Header
+}
+
+func (l LapData) Id() Id {
+	return LapDataId
 }
 
 func (l LapData) Player() DriverLap {

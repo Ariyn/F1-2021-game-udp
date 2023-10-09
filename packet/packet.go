@@ -8,8 +8,16 @@ import (
 	//"strconv"
 )
 
+// TODO: CarSetupData, CarStatusData, FInalClassificationData, LobbyInfoData, CarDamageData, SessionHistoryData
+type Types interface {
+	MotionData | SessionData | LapData | ParticipantData | CarTelemetryData |
+		EventData | SessionStarted | SessionEnded | FastestLap | Retirement | DRSEnabled | DRSDisabled | TeamMateInPits | Flashback | Buttons
+}
+
+type Id uint8
+
 const (
-	MotionDataId uint8 = iota
+	MotionDataId Id = iota
 	SessionDataId
 	LapDataId
 	EventId
@@ -67,6 +75,11 @@ var (
 func ParseHeader(b []byte) (h Header, err error) {
 	h = Header{}
 	err = ParsePacket(b[:HeaderSize], &h)
+	return
+}
+
+func ParsePacketGeneric[T Types](b []byte) (data T, err error) {
+	err = ParsePacket(b, &data)
 	return
 }
 

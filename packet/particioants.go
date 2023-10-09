@@ -23,8 +23,18 @@ func (p Participant) GetName() string {
 	return string(b)
 }
 
+var _ PacketData = (*ParticipantData)(nil)
+
 type ParticipantData struct {
 	Header             Header
 	NumberOfActiveCars uint8
 	Participants       [22]Participant
+}
+
+func (p ParticipantData) GetHeader() Header {
+	return p.Header
+}
+
+func (p ParticipantData) Id() Id {
+	return ParticipantsId
 }
