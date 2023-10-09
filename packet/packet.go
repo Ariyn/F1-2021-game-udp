@@ -38,6 +38,11 @@ var Ids = []int{
 	int(SessionHistoryId),
 }
 
+type PacketData interface {
+	Id() Id
+	GetHeader() Header
+}
+
 // F1-2021
 var HeaderSize = 24
 
