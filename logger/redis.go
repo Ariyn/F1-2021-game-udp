@@ -2,11 +2,18 @@ package logger
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/ariyn/F1-2021-game-udp/packet"
 	"github.com/redis/go-redis/v9"
 	"strconv"
 	"time"
 )
+
+type LapHistory struct {
+	Number    int
+	StartedAt int64
+	EndedAt   int64
+}
 
 var _ packet.Logger = (*RedisClient)(nil)
 
@@ -97,6 +104,17 @@ func (r *RedisClient) Run() {
 				r.lastLapDelta = r.currentLapDelta
 				r.currentLapDelta = make(map[int]float64)
 				r.currentLapTimeByDistance = make(map[int]float64)
+
+				if lh, err := r.GetLapHistory(int(ld.CurrentLapNumber) - 1); err == nil {
+					lh.EndedAt = now
+					r.setLapHistory(int(ld.CurrentLapNumber)-1, lh)
+				}
+
+				lh := LapHistory{
+					Number:    int(ld.CurrentLapNumber),
+					StartedAt: now,
+				}
+				r.setLapHistory(int(ld.CurrentLapNumber), lh)
 			}
 
 			r.addTs("lapNumber", now, float64(ld.CurrentLapNumber))
@@ -125,6 +143,24 @@ func (r *RedisClient) Run() {
 			panic(err)
 		}
 	}
+}
+
+func (r *RedisClient) GetLapHistory(number int) (lh LapHistory, err error) {
+	data, err := r.client.HGet(r.ctx, "lapHistory", strconv.Itoa(number)).Result()
+	if err != nil {
+		return
+	}
+
+	err = json.Unmarshal([]byte(data), &lh)
+	return
+}
+
+func (r *RedisClient) setLapHistory(number int, lh LapHistory) (err error) {
+	b, err := json.Marshal(lh)
+	if err != nil {
+		return
+	}
+	return r.client.HSet(r.ctx, "lapHistory", strconv.Itoa(number), string(b)).Err()
 }
 
 func (r *RedisClient) hSet(key string, field, value string) error {
