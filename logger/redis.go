@@ -29,16 +29,30 @@ type RedisClient struct {
 	currentLapTimeByDistance map[int]float64
 	currentLapDelta          map[int]float64
 	lastLapDelta             map[int]float64
+	currentSessionUid        string
 }
 
-func (r *RedisClient) Writer(ctx context.Context) (c chan<- packet.PacketData, cancel context.CancelFunc, err error) {
-	r.inputChannel = make(chan packet.PacketData, 100)
-	r.ctx, cancel = context.WithCancel(ctx)
-
-	newCancel := func() {
-		cancel()
+func (r *RedisClient) updateCurrentSessionUid(sessionUid uint64) error {
+	uid := strconv.FormatUint(sessionUid, 10)
+	if uid != r.currentSessionUid {
+		r.currentSessionUid = uid
+		r.initRedis()
+		return r.setRaw("currentSessionId", uid)
 	}
 
+	return nil
+}
+
+func (r *RedisClient) GetCurrentSessionUid() error {
+	uid := r.client.Get(r.ctx, "currentSessionId").Val()
+	if uid != r.currentSessionUid {
+		r.currentSessionUid = uid
+	}
+
+	return nil
+}
+
+func (r *RedisClient) initRedis() {
 	_ = r.createTs("frameIdentifier")
 
 	_ = r.createTs("worldPositionX")
@@ -59,6 +73,15 @@ func (r *RedisClient) Writer(ctx context.Context) (c chan<- packet.PacketData, c
 	_ = r.createTs("lapSector")
 	_ = r.createTs("lapTime")
 	_ = r.createTs("lapDeltaTime")
+}
+
+func (r *RedisClient) Writer(ctx context.Context) (c chan<- packet.PacketData, cancel context.CancelFunc, err error) {
+	r.inputChannel = make(chan packet.PacketData, 100)
+	r.ctx, cancel = context.WithCancel(ctx)
+
+	newCancel := func() {
+		cancel()
+	}
 
 	return r.inputChannel, newCancel, nil
 }
@@ -66,6 +89,8 @@ func (r *RedisClient) Writer(ctx context.Context) (c chan<- packet.PacketData, c
 func (r *RedisClient) Run() {
 	for data := range r.inputChannel {
 		header := data.GetHeader()
+		r.updateCurrentSessionUid(header.SessionUid)
+
 		sessionDuration := getUnixTime(header.SessionTime)
 		if !r.started {
 			r.started = true
@@ -164,36 +189,48 @@ func (r *RedisClient) setLapHistory(number int, lh LapHistory) (err error) {
 }
 
 func (r *RedisClient) hSet(key string, field, value string) error {
-	return r.client.HSet(r.ctx, key, field, value).Err()
+	return r.client.HSet(r.ctx, r.getSessionKey(key), field, value).Err()
 }
 
-func (r *RedisClient) set(key string, val any) error {
+func (r *RedisClient) setRaw(key string, val any) error {
 	return r.client.Set(r.ctx, key, val, 0).Err()
 }
 
+func (r *RedisClient) set(key string, val any) error {
+	return r.client.Set(r.ctx, r.getSessionKey(key), val, 0).Err()
+}
+
 func (r *RedisClient) createTs(key string) error {
-	return r.client.TSCreate(r.ctx, key).Err()
+	return r.client.TSCreate(r.ctx, r.getSessionKey(key)).Err()
 }
 
 func (r *RedisClient) addTs(key string, timestampMs int64, value float64) error {
-	return r.client.TSAdd(r.ctx, key, timestampMs, value).Err()
+	return r.client.TSAdd(r.ctx, r.getSessionKey(key), timestampMs, value).Err()
 }
 
 func (r *RedisClient) GetTs(key string) (val redis.TSTimestampValue, err error) {
-	return r.client.TSGet(r.ctx, key).Result()
+	return r.client.TSGet(r.ctx, r.getSessionKey(key)).Result()
+}
+
+func (r *RedisClient) GetTsWithRange(key string, from, to int) (val []redis.TSTimestampValue, err error) {
+	return r.client.TSRange(r.ctx, r.getSessionKey(key), from, to).Result()
 }
 
 func (r *RedisClient) publish(key, val string) error {
-	return r.client.Publish(r.ctx, key, val).Err()
+	return r.client.Publish(r.ctx, r.getSessionKey(key), val).Err()
 }
 
 func (r *RedisClient) Listen(key string) <-chan *redis.Message {
-	r.pubsub = r.client.Subscribe(r.ctx, key)
+	r.pubsub = r.client.Subscribe(r.ctx, r.getSessionKey(key))
 	return r.pubsub.Channel()
 }
 
 func (r *RedisClient) CloseListen() error {
 	return r.pubsub.Close()
+}
+
+func (r *RedisClient) getSessionKey(key string) string {
+	return r.currentSessionUid + "-" + key
 }
 
 func NewRedisClient(ctx context.Context, url string, db int) (c *RedisClient) {
