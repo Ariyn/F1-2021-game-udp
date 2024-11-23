@@ -2,6 +2,7 @@ package packet
 
 const ParticipantDataSize = 1257
 
+// Participants Packet
 type Participant struct {
 	IsAiControlled        uint8     `json:"m_aiControlled"`  // Whether the vehicle is AI (1) or Human (0) controlled
 	DriverId              uint8     `json:"m_driverId"`      // Driver id - see appendix, 255 if network human
@@ -23,7 +24,7 @@ func (p Participant) GetName() string {
 	return string(b)
 }
 
-var _ PacketData = (*ParticipantData)(nil)
+var _ Data = (*ParticipantData)(nil)
 
 type ParticipantData struct {
 	Header             Header

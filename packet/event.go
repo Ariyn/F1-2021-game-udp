@@ -2,6 +2,7 @@ package packet
 
 const EventDataSize = 36
 
+// Event String Codes
 type EventCode string
 
 const (
@@ -92,37 +93,89 @@ func (TeamMateInPits) StringCode() EventCode {
 	return TMPT
 }
 
+var _ EventSpecificData = (*ChequeredFlag)(nil)
+
+type ChequeredFlag struct{}
+
+func (ChequeredFlag) StringCode() EventCode {
+	return CHQF
+}
+
+var _ EventSpecificData = (*RaceWinner)(nil)
+
 type RaceWinner struct {
 	VehicleIndex uint8 `json:"vehicleIdx"` // Vehicle index of the race winner
 }
 
-type Penalty struct {
-	PenaltyType       uint8
-	InfringementType  uint8
-	VehicleIndex      uint8
-	OtherVehicleIndex uint8 // if not 255
-	Time              uint8 // if not 255
-	LapNumber         uint8
-	PlacesGained      uint8 // if not 255
+func (RaceWinner) StringCode() EventCode {
+	return RCWN
 }
+
+var _ EventSpecificData = (*Penalty)(nil)
+
+type Penalty struct {
+	PenaltyType       uint8 // Penalty type – see Appendices
+	InfringementType  uint8 // Infringement type – see Appendices
+	VehicleIndex      uint8 // Vehicle index of the car the penalty is applied to
+	OtherVehicleIndex uint8 // Vehicle index of the other car involved
+	Time              uint8 // Time gained, or time spent doing action in seconds
+	LapNumber         uint8 // Lap the penalty occurred on
+	PlacesGained      uint8 // Number of places gained by this
+}
+
+func (Penalty) StringCode() EventCode {
+	return PENA
+}
+
+var _ EventSpecificData = (*SpeedTrap)(nil)
 
 type SpeedTrap struct {
-	VehicleIndex            uint8
-	Speed                   float32
-	OverallFastestInSession uint8
-	DriverFastestInSession  uint8
+	VehicleIndex            uint8   // Vehicle index of the vehicle triggering speed trap
+	Speed                   float32 // Top speed achieved in kilometres per hour
+	OverallFastestInSession uint8   // Overall fastest speed in session = 1, otherwise 0
+	DriverFastestInSession  uint8   // Fastest speed for driver in session = 1, otherwise 0
 }
+
+func (SpeedTrap) StringCode() EventCode {
+	return SPTP
+}
+
+var _ EventSpecificData = (*StartLights)(nil)
 
 type StartLights struct {
-	NumberLights uint8
+	NumberLights uint8 // Number of lights showing
 }
+
+func (StartLights) StringCode() EventCode {
+	return STLG
+}
+
+var _ EventSpecificData = (*LightsOut)(nil)
+
+type LightsOut struct{}
+
+func (LightsOut) StringCode() EventCode {
+	return LGTO
+}
+
+var _ EventSpecificData = (*DriveThroughPenaltyServed)(nil)
 
 type DriveThroughPenaltyServed struct {
-	VehicleIndex uint8
+	VehicleIndex uint8 // Vehicle index of the vehicle serving drive through
 }
 
+func (DriveThroughPenaltyServed) StringCode() EventCode {
+	return DTSV
+}
+
+var _ EventSpecificData = (*StopGoPenaltyServed)(nil)
+
 type StopGoPenaltyServed struct {
-	VehicleIndex uint8
+	VehicleIndex uint8 // Vehicle index of the vehicle serving stop go
+}
+
+func (StopGoPenaltyServed) StringCode() EventCode {
+	return SGSV
 }
 
 var _ EventSpecificData = (*Flashback)(nil)
@@ -146,8 +199,10 @@ func (b Buttons) StringCode() EventCode {
 	return BUTN
 }
 
-var _ PacketData = (*EventData)(nil)
+var _ Data = (*EventData)(nil)
 
+// Event Packet
+// This packet gives details of events that happen during the course of a session.
 type EventData struct {
 	Header          Header
 	EventStringCode [4]uint8

@@ -4,31 +4,35 @@ import (
 	"context"
 	"log"
 	"net"
+	"sync"
 )
 
 const (
 	DefaultNetwork = "udp"
-	DefaultAddress = "0.0.0.0:1278"
+	DefaultAddress = "0.0.0.0:1946"
 )
 
 type Listener struct {
 	ctx            context.Context
 	conn           net.PacketConn
 	loggers        []Logger
-	loggerChannels []chan<- PacketData
+	loggerChannels []chan<- Data
 	loggerCancels  []context.CancelFunc
+	waitGroup      *sync.WaitGroup
 	started        bool
 }
 
-func NewListener(ctx context.Context, network, address string, loggers ...Logger) (l Listener, err error) {
-	l = Listener{
-		ctx:     ctx,
-		loggers: loggers,
-		started: false,
+func NewListener(ctx context.Context, network, address string, loggers ...Logger) (l *Listener, err error) {
+	l = &Listener{
+		ctx:       ctx,
+		loggers:   loggers,
+		started:   false,
+		waitGroup: &sync.WaitGroup{},
 	}
 
+	l.waitGroup.Add(len(loggers))
 	for _, logger := range loggers {
-		channel, cancel, err := logger.Writer(ctx)
+		channel, cancel, err := logger.Writer(ctx, l.waitGroup)
 		if err != nil {
 			return l, err
 		}
@@ -84,7 +88,7 @@ func (l *Listener) Run() (err error) {
 			panic(err)
 		}
 
-		var data PacketData
+		var data Data
 		switch Id(header.PacketId) {
 		case MotionDataId:
 			data, err = ParsePacketGeneric[MotionData](buf)
@@ -96,18 +100,8 @@ func (l *Listener) Run() (err error) {
 			if err != nil {
 				panic(err)
 			}
-		case CarTelemetryDataId:
-			data, err = ParsePacketGeneric[CarTelemetryData](buf)
-			if err != nil {
-				panic(err)
-			}
 		case LapDataId:
 			data, err = ParsePacketGeneric[LapData](buf)
-			if err != nil {
-				panic(err)
-			}
-		case ParticipantsId:
-			data, err = ParsePacketGeneric[ParticipantData](buf)
 			if err != nil {
 				panic(err)
 			}
@@ -125,6 +119,30 @@ func (l *Listener) Run() (err error) {
 				v.Event, err = ParsePacketGeneric[SessionEnded](buf[HeaderSize+4:])
 			case FTLP:
 				v.Event, err = ParsePacketGeneric[FastestLap](buf[HeaderSize+4:])
+			case RTMT:
+				v.Event, err = ParsePacketGeneric[Retirement](buf[HeaderSize+4:])
+			case DRSE:
+				v.Event, err = ParsePacketGeneric[DRSEnabled](buf[HeaderSize+4:])
+			case DRSD:
+				v.Event, err = ParsePacketGeneric[DRSDisabled](buf[HeaderSize+4:])
+			case TMPT:
+				v.Event, err = ParsePacketGeneric[TeamMateInPits](buf[HeaderSize+4:])
+			case CHQF:
+				v.Event, err = ParsePacketGeneric[ChequeredFlag](buf[HeaderSize+4:])
+			case RCWN:
+				v.Event, err = ParsePacketGeneric[RaceWinner](buf[HeaderSize+4:])
+			case PENA:
+				v.Event, err = ParsePacketGeneric[Penalty](buf[HeaderSize+4:])
+			case SPTP:
+				v.Event, err = ParsePacketGeneric[SpeedTrap](buf[HeaderSize+4:])
+			case STLG:
+				v.Event, err = ParsePacketGeneric[StartLights](buf[HeaderSize+4:])
+			case LGTO:
+				v.Event, err = ParsePacketGeneric[LightsOut](buf[HeaderSize+4:])
+			case DTSV:
+				v.Event, err = ParsePacketGeneric[DriveThroughPenaltyServed](buf[HeaderSize+4:])
+			case SGSV:
+				v.Event, err = ParsePacketGeneric[StopGoPenaltyServed](buf[HeaderSize+4:])
 			case FLBK:
 				v.Event, err = ParsePacketGeneric[Flashback](buf[HeaderSize+4:])
 			case BUTN:
@@ -135,6 +153,46 @@ func (l *Listener) Run() (err error) {
 			}
 
 			data = v
+		case ParticipantsId:
+			data, err = ParsePacketGeneric[ParticipantData](buf)
+			if err != nil {
+				panic(err)
+			}
+		case CarSetupsId:
+			data, err = ParsePacketGeneric[CarSetupData](buf)
+			if err != nil {
+				panic(err)
+			}
+		case CarTelemetryDataId:
+			data, err = ParsePacketGeneric[CarTelemetryData](buf)
+			if err != nil {
+				panic(err)
+			}
+		case CarStatusId:
+			data, err = ParsePacketGeneric[CarStatusData](buf)
+			if err != nil {
+				panic(err)
+			}
+		case FinalClassificationId:
+			data, err = ParsePacketGeneric[FinalClassificationData](buf)
+			if err != nil {
+				panic(err)
+			}
+		case LobbyInfoId:
+			data, err = ParsePacketGeneric[LobbyInfoData](buf)
+			if err != nil {
+				panic(err)
+			}
+		case CarDamageId:
+			data, err = ParsePacketGeneric[CarDamageData](buf)
+			if err != nil {
+				panic(err)
+			}
+		case SessionHistoryId:
+			data, err = ParsePacketGeneric[SessionHistoryData](buf)
+			if err != nil {
+				panic(err)
+			}
 		}
 
 		if data != nil {
@@ -151,5 +209,6 @@ func (l *Listener) Run() (err error) {
 		}
 	}
 
+	l.waitGroup.Wait()
 	return nil
 }

@@ -45,34 +45,10 @@ func Test_CarTelemetryDataSize(t *testing.T) {
 }
 
 func TestParseModel(t *testing.T) {
-	type _testModel2 struct {
-		C [4]uint8
-		D uint32
-	}
-	type _testModel3 struct {
-		E int8
-	}
-	type _testModel struct {
-		A uint32
-		B uint8
-		C _testModel2
-		E [4]_testModel3
-	}
-
-	testModel := _testModel{}
-	err := packet.ParsePacket([]byte{255, 0, 0, 0, 2, 3, 3, 3, 3, 6, 0, 0, 0, 8, 255, 8, 255}, &testModel)
+	testModel := packet.Header{}
+	err := packet.ParsePacket([]byte{255, 0, 23, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, &testModel)
 	assert.NoError(t, err)
-	assert.Equal(t, _testModel{
-		A: 255,
-		B: 2,
-		C: _testModel2{
-			C: [4]uint8{3, 3, 3, 3},
-			D: 6,
-		},
-		E: [4]_testModel3{
-			{8}, {-1}, {8}, {-1},
-		},
-	}, testModel)
+	assert.Equal(t, packet.Header{PacketFormat: 255, MajorGameVersion: 23, MinorGameVersion: 16}, testModel)
 }
 
 func TestFormatPacket(t *testing.T) {

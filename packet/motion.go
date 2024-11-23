@@ -23,7 +23,7 @@ type CarMotionData struct {
 	Roll               float32 `json:"m_roll"`               // Roll angle in radians
 }
 
-var _ PacketData = (*MotionData)(nil)
+var _ Data = (*MotionData)(nil)
 
 type MotionData struct {
 	Header        Header

@@ -19,7 +19,7 @@ type WeatherForecastSample struct {
 
 }
 
-var _ PacketData = (*SessionData)(nil)
+var _ Data = (*SessionData)(nil)
 
 type SessionData struct {
 	Header                       Header

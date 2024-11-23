@@ -8,10 +8,10 @@ type Float3d struct {
 	Z float32
 }
 
-type Int163d struct {
-	X int16
-	Y int16
-	Z int16
+type Int3d struct {
+	X int
+	Y int
+	Z int
 }
 
 type FloatWheels struct {
@@ -21,25 +21,18 @@ type FloatWheels struct {
 	FR float32
 }
 
-type Int16Wheel struct {
-	RL int16
-	RR int16
-	FL int16
-	FR int16
-}
-
-type Int8Wheel struct {
-	RL int8
-	RR int8
-	FL int8
-	FR int8
+type IntWheels struct {
+	RL int
+	RR int
+	FL int
+	FR int
 }
 
 type MotionData struct {
 	Position   Float3d
 	Velocity   Float3d
-	ForwardDir Int163d
-	RightDir   Int163d
+	ForwardDir Int3d
+	RightDir   Int3d
 	GForce     Float3d
 	Heading    Float3d
 }
@@ -48,8 +41,8 @@ type PlayerMotionData struct {
 	Timestamp              uint64
 	Position               Float3d
 	Velocity               Float3d
-	ForwardDir             Int163d
-	RightDir               Int163d
+	ForwardDir             Int3d
+	RightDir               Int3d
 	GForce                 Float3d
 	Heading                Float3d
 	SuspensionPosition     FloatWheels
@@ -78,15 +71,15 @@ func GetPlayerMotionData(timestamp int64, m *packet.MotionData) PlayerMotionData
 			Y: player.WorldVelocityY,
 			Z: player.WorldVelocityZ,
 		},
-		ForwardDir: Int163d{
-			X: int16(player.WorldForwardDirX),
-			Y: int16(player.WorldForwardDirY),
-			Z: int16(player.WorldForwardDirZ),
+		ForwardDir: Int3d{
+			X: int(player.WorldForwardDirX),
+			Y: int(player.WorldForwardDirY),
+			Z: int(player.WorldForwardDirZ),
 		},
-		RightDir: Int163d{
-			X: int16(player.WorldRightDirX),
-			Y: int16(player.WorldRightDirY),
-			Z: int16(player.WorldRightDirZ),
+		RightDir: Int3d{
+			X: int(player.WorldRightDirX),
+			Y: int(player.WorldRightDirY),
+			Z: int(player.WorldRightDirZ),
 		},
 		GForce: Float3d{
 			X: player.GForceLateral,
@@ -161,15 +154,15 @@ func GetMotionData(timestamp int64, m packet.CarMotionData) PlayerMotionData {
 			Y: m.WorldVelocityY,
 			Z: m.WorldVelocityZ,
 		},
-		ForwardDir: Int163d{
-			X: int16(m.WorldForwardDirX),
-			Y: int16(m.WorldForwardDirY),
-			Z: int16(m.WorldForwardDirZ),
+		ForwardDir: Int3d{
+			X: int(m.WorldForwardDirX),
+			Y: int(m.WorldForwardDirY),
+			Z: int(m.WorldForwardDirZ),
 		},
-		RightDir: Int163d{
-			X: int16(m.WorldRightDirX),
-			Y: int16(m.WorldRightDirY),
-			Z: int16(m.WorldRightDirZ),
+		RightDir: Int3d{
+			X: int(m.WorldRightDirX),
+			Y: int(m.WorldRightDirY),
+			Z: int(m.WorldRightDirZ),
 		},
 		GForce: Float3d{
 			X: m.GForceLateral,

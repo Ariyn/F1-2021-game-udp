@@ -1,8 +1,11 @@
 package packet
 
-import "context"
+import (
+	"context"
+	"sync"
+)
 
 type Logger interface {
-	Writer(ctx context.Context) (c chan<- PacketData, cancel context.CancelFunc, err error)
+	Writer(ctx context.Context, wg *sync.WaitGroup) (c chan<- Data, cancel context.CancelFunc, err error)
 	Run()
 }

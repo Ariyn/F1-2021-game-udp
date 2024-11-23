@@ -6,6 +6,7 @@ import (
 	"github.com/ariyn/F1-2021-game-udp/packet"
 	"github.com/redis/go-redis/v9"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -19,11 +20,12 @@ var _ packet.Logger = (*RedisClient)(nil)
 
 type RedisClient struct {
 	ctx                      context.Context
+	wg                       *sync.WaitGroup
 	client                   *redis.Client
 	pubsub                   *redis.PubSub
 	started                  bool
 	startedAt                time.Time
-	inputChannel             chan packet.PacketData
+	inputChannel             chan packet.Data
 	currentLapNumber         int
 	distance                 int
 	currentLapTimeByDistance map[int]float64
@@ -75,9 +77,10 @@ func (r *RedisClient) initRedis() {
 	_ = r.createTs("lapDeltaTime")
 }
 
-func (r *RedisClient) Writer(ctx context.Context) (c chan<- packet.PacketData, cancel context.CancelFunc, err error) {
-	r.inputChannel = make(chan packet.PacketData, 100)
+func (r *RedisClient) Writer(ctx context.Context, wg *sync.WaitGroup) (c chan<- packet.Data, cancel context.CancelFunc, err error) {
+	r.inputChannel = make(chan packet.Data, 100)
 	r.ctx, cancel = context.WithCancel(ctx)
+	r.wg = wg
 
 	newCancel := func() {
 		cancel()
@@ -87,6 +90,8 @@ func (r *RedisClient) Writer(ctx context.Context) (c chan<- packet.PacketData, c
 }
 
 func (r *RedisClient) Run() {
+	defer r.wg.Done()
+
 	for data := range r.inputChannel {
 		header := data.GetHeader()
 		r.updateCurrentSessionUid(header.SessionUid)

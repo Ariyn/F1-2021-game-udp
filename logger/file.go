@@ -1,190 +1,80 @@
 package logger
 
 import (
-	"errors"
-	"fmt"
+	"context"
 	"github.com/ariyn/F1-2021-game-udp/packet"
-	"io/ioutil"
+	"log"
 	"os"
 	"path"
-	"strconv"
+	"sync"
 	"time"
 )
 
-const GeneralData = uint8(255)
+var _ packet.Logger = (*FileClient)(nil)
 
-type Logger struct {
-	Path             string
-	storage          string
-	Timestamp        time.Time
-	maximumCarNumber int
-	files            [][]*os.File // [driverIndex][packetId]
-	generalFile      *os.File
-	rawFiles         []*os.File
+type FileClient struct {
+	ctx        context.Context
+	wg         *sync.WaitGroup
+	Path       string
+	Timestamp  time.Time
+	file       *os.File
+	packetChan chan packet.Data
 }
 
-func NewLogger(p string, t time.Time, maxCarNumber int) (l Logger, err error) {
-	l = Logger{
-		Path:             p,
-		Timestamp:        t,
-		maximumCarNumber: maxCarNumber,
+func NewFileClient(p string, t time.Time) (fc *FileClient, err error) {
+	fc = &FileClient{
+		Path:       p,
+		Timestamp:  t,
+		packetChan: make(chan packet.Data, 1000),
 	}
 
-	l.storage, err = l.createFolder(l.Path, l.Timestamp.Format("2006-01-02"), l.Timestamp.Format("150405"))
+	_, err = fc.createFolder(fc.Path)
 	if err != nil {
 		return
 	}
 
-	rawStorage, err := l.createFolder(l.storage, "raw")
-	if err != nil {
-		return
-	}
-
-	l.files = make([][]*os.File, l.maximumCarNumber)
-	for driverIndex := 0; driverIndex < l.maximumCarNumber; driverIndex++ {
-		l.files[driverIndex] = make([]*os.File, len(packet.Ids))
-	}
-
-	l.generalFile, err = os.Create(path.Join(l.storage, "general"))
+	fc.file, err = os.Create(path.Join(fc.Path, fc.Timestamp.Format("20060102150405")+".data"))
 	if err != nil {
 		panic(err)
 	}
 
-	for i := 0; i < len(packet.Ids); i++ {
-		var f *os.File
-		f, err = os.Create(path.Join(rawStorage, strconv.Itoa(packet.Ids[i])))
-		if err != nil {
-			return
-		}
-		l.rawFiles = append(l.rawFiles, f)
-	}
-
-	for i := 0; i < l.maximumCarNumber; i++ {
-		err = l.NewLap(-1, i)
-		if err != nil {
-			return
-		}
-	}
-
 	return
 }
 
-func (l Logger) createFolder(pathElement ...string) (p string, err error) {
+func (fc *FileClient) Writer(ctx context.Context, wg *sync.WaitGroup) (c chan<- packet.Data, cancel context.CancelFunc, err error) {
+	fc.ctx, cancel = context.WithCancel(ctx)
+	fc.wg = wg
+	return fc.packetChan, cancel, nil
+}
+
+func (fc *FileClient) Run() {
+	defer fc.wg.Done()
+	defer func() {
+		err := fc.file.Close()
+		if err != nil {
+			log.Println("failed to close file", err)
+		}
+	}()
+
+	for packetData := range fc.packetChan {
+		data, err := packet.FormatPacket(packetData)
+		if err != nil {
+			log.Println("failed to write packet data", err, packetData.GetHeader().PacketId)
+		}
+
+		l, err := fc.file.Write(data)
+		if err != nil {
+			log.Println("failed to write packet data", err, packetData.GetHeader().PacketId)
+		}
+
+		if l != len(data) {
+			log.Println("failed to write packet data", err, packetData.GetHeader().PacketId)
+		}
+	}
+}
+
+func (fc *FileClient) createFolder(pathElement ...string) (p string, err error) {
 	p = path.Join(pathElement...)
 	err = os.MkdirAll(p, 0755)
-	return
-}
-
-func (l *Logger) NewLap(lap, driverIndex int) (err error) {
-	p, err := l.createFolder(l.storage, strconv.Itoa(lap))
-	if err != nil && !os.IsExist(err) {
-		return
-	}
-
-	for packetIndex, id := range packet.Ids {
-		if l.files[driverIndex][packetIndex] != nil {
-			err = l.files[driverIndex][packetIndex].Close()
-			if err != nil {
-				return
-			}
-		}
-
-		l.files[driverIndex][packetIndex], err = os.Create(path.Join(p, fmt.Sprintf("%d-%d", driverIndex, id)))
-		if err != nil {
-			return
-		}
-	}
-
-	return nil
-}
-
-func (l Logger) Write(id uint8, carIndex int, data []byte) (err error) {
-	var f *os.File
-	if id == GeneralData {
-		f = l.generalFile
-	} else {
-		f = l.files[carIndex][id]
-	}
-	n, err := f.Write(data)
-	if err != nil {
-		return
-	}
-
-	if n != len(data) {
-		err = errors.New("not enough write")
-	}
-	return
-}
-
-func (l Logger) WriteAsync(id uint8, carIndex int, data []byte) {
-	go func(id uint8, carIndex int, data []byte) {
-		var f *os.File
-		if id == GeneralData {
-			f = l.generalFile
-		} else {
-			f = l.files[carIndex][id]
-		}
-		n, err := f.Write(data)
-		if err != nil {
-			return
-		}
-
-		if n != len(data) {
-			err = errors.New("not enough write")
-		}
-	}(id, carIndex, data)
-	return
-}
-
-func (l Logger) WriteRaw(id uint8, data []byte) (err error) {
-	n, err := l.rawFiles[id].Write(data)
-	if err != nil {
-		return
-	}
-
-	if n != len(data) {
-		err = errors.New("not enough write")
-	}
-	return
-}
-
-func (l Logger) WriteRawAsync(id uint8, data []byte) {
-	go func(id uint8, data []byte) {
-		n, err := l.rawFiles[id].Write(data)
-		if err != nil {
-			return
-		}
-
-		if n != len(data) {
-			err = errors.New("not enough write")
-		}
-	}(id, data)
-	return
-}
-
-func (l Logger) WriteText(name, value string) (err error) {
-	return ioutil.WriteFile(path.Join(l.storage, name), []byte(value), 0755)
-}
-
-func (l Logger) WriteTextAsync(name, value string) {
-	go ioutil.WriteFile(path.Join(l.storage, name), []byte(value), 0755)
-	return
-}
-
-func (l Logger) Close() (err error) {
-	for _, fs := range l.files {
-		for _, f := range fs {
-			err = f.Close()
-			if err != nil && err != os.ErrClosed {
-				return
-			}
-		}
-	}
-	for _, f := range l.rawFiles {
-		err = f.Close()
-		if err != nil && err != os.ErrClosed {
-			return
-		}
-	}
 	return
 }

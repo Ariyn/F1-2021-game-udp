@@ -5,14 +5,25 @@ import (
 	"fmt"
 	"github.com/ariyn/F1-2021-game-udp/logger"
 	"github.com/ariyn/F1-2021-game-udp/packet"
+	"github.com/joho/godotenv"
 	"log"
+	"os"
 )
 
-func main() {
-	stdoutLogger := logger.NewStdoutClient()
-	redisLogger := logger.NewRedisClient(context.Background(), "localhost:6379", 0)
+func init() {
+	godotenv.Load()
+}
 
-	listener, err := packet.NewListener(context.Background(), packet.DefaultNetwork, packet.DefaultAddress, stdoutLogger, redisLogger)
+func main() {
+	//stdoutLogger := logger.NewStdoutClient()
+	sqlClient, err := logger.NewSqlClient(os.Getenv("DATABASE_URL"))
+	if err != nil {
+		panic(err)
+	}
+
+	//stdoutLogger
+
+	listener, err := packet.NewListener(context.Background(), packet.DefaultNetwork, packet.DefaultAddress, sqlClient)
 	if err != nil {
 		log.Fatal(err)
 	}

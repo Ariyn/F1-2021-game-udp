@@ -3,15 +3,43 @@ package packet
 import (
 	"encoding/binary"
 	"errors"
+	"log"
 	"math"
 	"reflect"
 	//"strconv"
 )
 
-// TODO: CarSetupData, CarStatusData, FInalClassificationData, LobbyInfoData, CarDamageData, SessionHistoryData
 type Types interface {
-	MotionData | SessionData | LapData | ParticipantData | CarTelemetryData |
-		EventData | SessionStarted | SessionEnded | FastestLap | Retirement | DRSEnabled | DRSDisabled | TeamMateInPits | Flashback | Buttons
+	Header |
+		MotionData |
+		SessionData |
+		LapData |
+		ParticipantData |
+		CarTelemetryData |
+		EventData |
+		SessionStarted |
+		SessionEnded |
+		FastestLap |
+		Retirement |
+		DRSEnabled |
+		DRSDisabled |
+		TeamMateInPits |
+		Flashback |
+		Buttons |
+		CarSetupData |
+		CarStatusData |
+		FinalClassificationData |
+		LobbyInfoData |
+		CarDamageData |
+		SessionHistoryData |
+		RaceWinner |
+		SpeedTrap |
+		Penalty |
+		StartLights |
+		DriveThroughPenaltyServed |
+		StopGoPenaltyServed |
+		ChequeredFlag |
+		LightsOut
 }
 
 type Id uint8
@@ -46,7 +74,22 @@ var Ids = []int{
 	int(SessionHistoryId),
 }
 
-type PacketData interface {
+var NamesById = map[Id]string{
+	MotionDataId:          "MotionData",
+	SessionDataId:         "SessionData",
+	LapDataId:             "LapData",
+	EventId:               "Event",
+	ParticipantsId:        "Participants",
+	CarSetupsId:           "CarSetups",
+	CarTelemetryDataId:    "CarTelemetryData",
+	CarStatusId:           "CarStatus",
+	FinalClassificationId: "FinalClassification",
+	LobbyInfoId:           "LobbyInfo",
+	CarDamageId:           "CarDamage",
+	SessionHistoryId:      "SessionHistory",
+}
+
+type Data interface {
 	Id() Id
 	GetHeader() Header
 }
@@ -70,10 +113,10 @@ type Header struct {
 var (
 	errNotEnoughData = errors.New("not enough data")
 	errNotPointer    = errors.New("not pointer")
+	errInvalid       = errors.New("invalid value")
 )
 
 func ParseHeader(b []byte) (h Header, err error) {
-	h = Header{}
 	err = ParsePacket(b[:HeaderSize], &h)
 	return
 }
@@ -83,7 +126,7 @@ func ParsePacketGeneric[T Types](b []byte) (data T, err error) {
 	return
 }
 
-func ParsePacket(b []byte, model interface{}) (err error) {
+func ParsePacket[T Types](b []byte, model *T) (err error) {
 	value := reflect.ValueOf(model)
 	if value.Kind() != reflect.Ptr || value.IsNil() {
 		return errNotPointer
@@ -93,87 +136,50 @@ func ParsePacket(b []byte, model interface{}) (err error) {
 		return errNotEnoughData
 	}
 
-	subValue := value.Elem()
-
-	dataIndex := 0
-	size := 0
-	if subValue.Kind() == reflect.Array {
-		firstElem := subValue.Index(0)
-		kind := firstElem.Kind()
-		size = Sizeof(firstElem)
-		for i, n := 0, subValue.Len(); i < n; i, dataIndex = i+1, dataIndex+size {
-			elemValue := subValue.Index(i)
-			if !elemValue.IsValid() || !elemValue.CanSet() {
-				continue
-			}
-
-			if kind != reflect.Struct && kind != reflect.Array {
-				size = Sizeof(elemValue)
-			}
-
-			switch elemValue.Kind() {
-			case reflect.Int8:
-				elemValue.SetInt(int64(parseInt8(b[dataIndex])))
-			case reflect.Uint8:
-				elemValue.SetUint(uint64(parseUint8(b[dataIndex])))
-			case reflect.Uint16:
-				elemValue.SetUint(uint64(parseUint16(b[dataIndex : dataIndex+2])))
-			case reflect.Uint32:
-				elemValue.SetUint(uint64(parseUint32(b[dataIndex : dataIndex+4])))
-			case reflect.Uint64:
-				elemValue.SetUint(parseUint64(b[dataIndex : dataIndex+8]))
-			case reflect.Float32:
-				elemValue.SetFloat(float64(parseFloat32(b[dataIndex : dataIndex+8])))
-			case reflect.Struct:
-				fallthrough
-			case reflect.Array:
-				err = ParsePacket(b[dataIndex:], elemValue.Addr().Interface())
-				if err != nil {
-					return
-				}
-			}
-		}
-		return
-	}
-
-	dataIndex = 0
-	size = 0
-
-	for i, n := 0, subValue.NumField(); i < n; i, dataIndex, size = i+1, dataIndex+size, 0 {
-		fieldValue := subValue.Field(i)
-		kind := fieldValue.Kind()
-		if kind != reflect.Struct && kind != reflect.Array {
-			size = Sizeof(fieldValue)
-		}
-
-		if !fieldValue.IsValid() || !fieldValue.CanSet() {
-			continue
-		}
-		switch fieldValue.Kind() {
-		case reflect.Int8:
-			fieldValue.SetInt(int64(parseInt8(b[dataIndex])))
-		case reflect.Uint8:
-			fieldValue.SetUint(uint64(parseUint8(b[dataIndex])))
-		case reflect.Uint16:
-			fieldValue.SetUint(uint64(parseUint16(b[dataIndex : dataIndex+2])))
-		case reflect.Uint32:
-			fieldValue.SetUint(uint64(parseUint32(b[dataIndex : dataIndex+4])))
-		case reflect.Uint64:
-			fieldValue.SetUint(parseUint64(b[dataIndex : dataIndex+8]))
-		case reflect.Float32:
-			fieldValue.SetFloat(float64(parseFloat32(b[dataIndex : dataIndex+8])))
-		case reflect.Struct:
-			fallthrough
-		case reflect.Array:
-			err = ParsePacket(b[dataIndex:], fieldValue.Addr().Interface())
-			if err != nil {
-				return
-			}
-
-			dataIndex += Sizeof(fieldValue)
-		}
-	}
+	_, err = Parse(value.Elem(), b)
 	return
+}
+
+func Parse(elemValue reflect.Value, b []byte) (parsed reflect.Value, err error) {
+	if !elemValue.IsValid() || !elemValue.CanSet() {
+		return elemValue, errInvalid
+	}
+
+	switch elemValue.Kind() {
+	case reflect.Int8:
+		elemValue.SetInt(int64(parseInt8(b[0])))
+	case reflect.Uint8:
+		elemValue.SetUint(uint64(parseUint8(b[0])))
+	case reflect.Int16:
+		elemValue.SetInt(int64(parseInt16(b[:2])))
+	case reflect.Uint16:
+		elemValue.SetUint(uint64(parseUint16(b[:2])))
+	case reflect.Int32:
+		elemValue.SetInt(int64(parseInt32(b[:4])))
+	case reflect.Uint32:
+		elemValue.SetUint(uint64(parseUint32(b[:4])))
+	case reflect.Int64:
+		elemValue.SetInt(parseInt64(b[:8]))
+	case reflect.Uint64:
+		elemValue.SetUint(parseUint64(b[:8]))
+	case reflect.Float32:
+		elemValue.SetFloat(float64(parseFloat32(b[:8])))
+	case reflect.Struct:
+		_struct, err := parseStruct(b, elemValue)
+		if err != nil {
+			return elemValue, err
+		}
+
+		elemValue.Set(_struct)
+	case reflect.Array:
+		elem, err := parseArray(b, elemValue)
+		if err != nil {
+			return elemValue, err
+		}
+		elemValue.Set(elem)
+	}
+
+	return elemValue, nil
 }
 
 func parseInt8(b byte) (r int8) {
@@ -183,14 +189,23 @@ func parseUint8(b byte) (r uint8) {
 	return uint8(binary.LittleEndian.Uint16(append([]byte{}, b, 0)))
 }
 
+func parseInt16(b []byte) (r int16) {
+	return int16(binary.LittleEndian.Uint16(b))
+}
 func parseUint16(b []byte) (r uint16) {
 	return binary.LittleEndian.Uint16(b)
 }
 
+func parseInt32(b []byte) (r int32) {
+	return int32(binary.LittleEndian.Uint32(b))
+}
 func parseUint32(b []byte) (r uint32) {
 	return binary.LittleEndian.Uint32(b)
 }
 
+func parseInt64(b []byte) (r int64) {
+	return int64(binary.LittleEndian.Uint64(b))
+}
 func parseUint64(b []byte) (r uint64) {
 	return binary.LittleEndian.Uint64(b)
 }
@@ -199,9 +214,48 @@ func parseFloat32(b []byte) (r float32) {
 	return math.Float32frombits(binary.LittleEndian.Uint32(b))
 }
 
+func parseArray(b []byte, array reflect.Value) (v reflect.Value, err error) {
+	size := 0
+	dataIndex := 0
+
+	for i, n := 0, array.Len(); i < n; i, dataIndex = i+1, dataIndex+size {
+		v, err = Parse(array.Index(i), b[dataIndex:])
+		if err != nil {
+			return array, err
+		}
+
+		array.Index(i).Set(v)
+		size = Sizeof(array.Index(i))
+	}
+
+	return array, nil
+}
+
+func parseStruct(b []byte, _struct reflect.Value) (v reflect.Value, err error) {
+	dataIndex := 0
+	size := 0
+
+	for i, n := 0, _struct.NumField(); i < n; i, dataIndex, size = i+1, dataIndex+size, 0 {
+		_v, err := Parse(_struct.Field(i), b[dataIndex:])
+		if err != nil {
+			return _struct, err
+		}
+
+		_struct.Field(i).Set(_v)
+		size = Sizeof(_struct.Field(i))
+	}
+
+	return _struct, nil
+}
+
 func FormatPacket(model interface{}) (b []byte, err error) {
 	value := reflect.ValueOf(model)
 	size := Sizeof(value)
+
+	if size == -1 {
+		log.Println("size", size, model)
+		return nil, errors.New("invalid size")
+	}
 	b = make([]byte, size)
 
 	switch value.Kind() {
