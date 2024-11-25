@@ -3,7 +3,6 @@ package packet
 import (
 	"encoding/binary"
 	"errors"
-	"log"
 	"math"
 	"reflect"
 	//"strconv"
@@ -253,7 +252,6 @@ func FormatPacket(model interface{}) (b []byte, err error) {
 	size := Sizeof(value)
 
 	if size == -1 {
-		log.Println("size", size, model)
 		return nil, errors.New("invalid size")
 	}
 	b = make([]byte, size)

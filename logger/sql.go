@@ -53,7 +53,6 @@ func (sc *SqlClient) Run() {
 	for packetData := range sc.packetChan {
 		b, err := packet.FormatPacket(packetData)
 		if err != nil {
-			log.Println("failed to format packet", err)
 			continue
 		}
 
