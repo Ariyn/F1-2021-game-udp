@@ -8,7 +8,7 @@ import (
 	"log"
 	"sync"
 
-	_ "github.com/lib/pq"
+	_ "github.com/marcboeker/go-duckdb"
 )
 
 var _ packet.Logger = (*SqlClient)(nil)
@@ -16,18 +16,16 @@ var _ packet.Logger = (*SqlClient)(nil)
 type SqlClient struct {
 	ctx        context.Context
 	wg         *sync.WaitGroup
-	Url        string
 	client     *sql.DB
 	packetChan chan packet.Data
 }
 
-func NewSqlClient(url string) (sc *SqlClient, err error) {
+func NewSqlClient() (sc *SqlClient, err error) {
 	sc = &SqlClient{
-		Url:        url,
 		packetChan: make(chan packet.Data, 1000),
 	}
 
-	sc.client, err = sql.Open("postgres", sc.Url)
+	sc.client, err = sql.Open("duckdb", "f1_telemetry.db")
 	if err != nil {
 		return nil, err
 	}

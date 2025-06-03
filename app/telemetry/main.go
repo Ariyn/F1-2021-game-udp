@@ -16,7 +16,7 @@ func init() {
 
 func main() {
 	//stdoutLogger := logger.NewStdoutClient()
-	sqlClient, err := logger.NewSqlClient(os.Getenv("DATABASE_URL"))
+	sqlClient, err := logger.NewSqlClient()
 	if err != nil {
 		panic(err)
 	}

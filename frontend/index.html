@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>F1 Telemetry Viewer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        #controls { margin-bottom: 20px; }
+        #lapNumberInput { padding: 5px; margin-right: 10px; }
+        #fetchButton { padding: 5px 10px; }
+        #chartContainer { width: 80%; max-width: 1000px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>F1 Telemetry Lap Viewer</h1>
+    <div id="controls">
+        <label for="lapNumberInput">랩 번호:</label>
+        <input type="number" id="lapNumberInput" value="1" min="1">
+        <button id="fetchButton">데이터 조회</button>
+    </div>
+    <div id="chartContainer">
+        <canvas id="lapChart"></canvas>
+    </div>
+
+    <script>
+        const lapNumberInput = document.getElementById('lapNumberInput');
+        const fetchButton = document.getElementById('fetchButton');
+        const ctx = document.getElementById('lapChart').getContext('2d');
+        let lapChart = null;
+
+        async function fetchLapData(lapNumber) {
+            try {
+                const response = await fetch(`/api/lap/${lapNumber}/timeline`);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error('Error fetching lap data:', error);
+                alert(`랩 데이터 조회 실패: ${error.message}`);
+                return null;
+            }
+        }
+
+        function plotData(telemetryData) {
+            if (!telemetryData || telemetryData.length === 0) {
+                alert('해당 랩에 대한 데이터가 없습니다.');
+                if (lapChart) {
+                    lapChart.destroy(); // 기존 차트 제거
+                    lapChart = null;
+                }
+                return;
+            }
+
+            const labels = telemetryData.map(data => data.SessionTime.toFixed(3)); // X축: SessionTime
+            const lapDistances = telemetryData.map(data => data.LapDistance);     // Y축: LapDistance
+
+            if (lapChart) {
+                lapChart.destroy();
+            }
+
+            lapChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `랩 ${telemetryData[0].LapNumber} - Lap Distance (m)`,
+                        data: lapDistances,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '세션 시간 (초)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: '랩 주행 거리 (m)'
+                            },
+                            beginAtZero: false // 데이터 범위에 따라 자동 조정
+                        }
+                    },
+                    responsive: true,
+                    maintainAspectRatio: true
+                }
+            });
+        }
+
+        fetchButton.addEventListener('click', async () => {
+            const lapNumber = parseInt(lapNumberInput.value);
+            if (isNaN(lapNumber) || lapNumber < 1) {
+                alert('유효한 랩 번호를 입력하세요.');
+                return;
+            }
+            const data = await fetchLapData(lapNumber);
+            if (data) {
+                plotData(data);
+            }
+        });
+
+        // 페이지 로드 시 기본 랩 데이터 조회 (예: 1번 랩)
+        // (async () => {
+        //     const initialLapNumber = 1;
+        //     lapNumberInput.value = initialLapNumber;
+        //     const data = await fetchLapData(initialLapNumber);
+        //     if (data) {
+        //         plotData(data);
+        //     }
+        // })();
+    </script>
+</body>
+</html>
