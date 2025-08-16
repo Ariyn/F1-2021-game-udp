@@ -7,7 +7,6 @@ import (
 	"github.com/ariyn/F1-2021-game-udp/packet"
 	"github.com/joho/godotenv"
 	"log"
-	"os"
 )
 
 func init() {
@@ -15,15 +14,12 @@ func init() {
 }
 
 func main() {
-	//stdoutLogger := logger.NewStdoutClient()
-	sqlClient, err := logger.NewSqlClient(os.Getenv("DATABASE_URL"))
+	duckDBClient, err := logger.NewDuckDBClient("f1_2021_packets.duckdb")
 	if err != nil {
 		panic(err)
 	}
 
-	//stdoutLogger
-
-	listener, err := packet.NewListener(context.Background(), packet.DefaultNetwork, packet.DefaultAddress, sqlClient)
+	listener, err := packet.NewListener(context.Background(), packet.DefaultNetwork, packet.DefaultAddress, duckDBClient)
 	if err != nil {
 		log.Fatal(err)
 	}
