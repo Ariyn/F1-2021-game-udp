@@ -70,6 +70,11 @@ func (l *Listener) Run() (err error) {
 		buf := make([]byte, 2048) // all telemetry data is under 2048 bytes.
 		n, _, err := l.conn.ReadFrom(buf)
 		if err != nil {
+			// If the context is cancelled, the connection will be closed and ReadFrom will return an error.
+			// This is expected, so we just exit gracefully.
+			if l.ctx.Err() != nil {
+				break
+			}
 			panic(err)
 		}
 
@@ -82,133 +87,37 @@ func (l *Listener) Run() (err error) {
 			l.started = true
 		}
 
-		buf = buf[:n]
-		header, err := ParseHeader(buf)
+		// It's crucial to slice the buffer to the actual number of bytes read.
+		rawBytes := buf[:n]
+
+		header, err := ParseHeader(rawBytes)
 		if err != nil {
-			panic(err)
+			log.Printf("failed to parse packet header: %v", err)
+			continue
 		}
 
-		var data Data
-		switch Id(header.PacketId) {
-		case MotionDataId:
-			data, err = ParsePacketGeneric[MotionData](buf)
-			if err != nil {
-				panic(err)
-			}
-		case SessionDataId:
-			data, err = ParsePacketGeneric[SessionData](buf)
-			if err != nil {
-				panic(err)
-			}
-		case LapDataId:
-			data, err = ParsePacketGeneric[LapData](buf)
-			if err != nil {
-				panic(err)
-			}
-		case EventId:
-			data, err = ParsePacketGeneric[EventData](buf)
-			if err != nil {
-				panic(err)
-			}
-
-			v := data.(EventData)
-			switch v.StringCode() {
-			case SSTA:
-				v.Event, err = ParsePacketGeneric[SessionStarted](buf[HeaderSize+4:])
-			case SEND:
-				v.Event, err = ParsePacketGeneric[SessionEnded](buf[HeaderSize+4:])
-			case FTLP:
-				v.Event, err = ParsePacketGeneric[FastestLap](buf[HeaderSize+4:])
-			case RTMT:
-				v.Event, err = ParsePacketGeneric[Retirement](buf[HeaderSize+4:])
-			case DRSE:
-				v.Event, err = ParsePacketGeneric[DRSEnabled](buf[HeaderSize+4:])
-			case DRSD:
-				v.Event, err = ParsePacketGeneric[DRSDisabled](buf[HeaderSize+4:])
-			case TMPT:
-				v.Event, err = ParsePacketGeneric[TeamMateInPits](buf[HeaderSize+4:])
-			case CHQF:
-				v.Event, err = ParsePacketGeneric[ChequeredFlag](buf[HeaderSize+4:])
-			case RCWN:
-				v.Event, err = ParsePacketGeneric[RaceWinner](buf[HeaderSize+4:])
-			case PENA:
-				v.Event, err = ParsePacketGeneric[Penalty](buf[HeaderSize+4:])
-			case SPTP:
-				v.Event, err = ParsePacketGeneric[SpeedTrap](buf[HeaderSize+4:])
-			case STLG:
-				v.Event, err = ParsePacketGeneric[StartLights](buf[HeaderSize+4:])
-			case LGTO:
-				v.Event, err = ParsePacketGeneric[LightsOut](buf[HeaderSize+4:])
-			case DTSV:
-				v.Event, err = ParsePacketGeneric[DriveThroughPenaltyServed](buf[HeaderSize+4:])
-			case SGSV:
-				v.Event, err = ParsePacketGeneric[StopGoPenaltyServed](buf[HeaderSize+4:])
-			case FLBK:
-				v.Event, err = ParsePacketGeneric[Flashback](buf[HeaderSize+4:])
-			case BUTN:
-				v.Event, err = ParsePacketGeneric[Buttons](buf[HeaderSize+4:])
-			}
-			if err != nil {
-				panic(err)
-			}
-
-			data = v
-		case ParticipantsId:
-			data, err = ParsePacketGeneric[ParticipantData](buf)
-			if err != nil {
-				panic(err)
-			}
-		case CarSetupsId:
-			data, err = ParsePacketGeneric[CarSetupData](buf)
-			if err != nil {
-				panic(err)
-			}
-		case CarTelemetryDataId:
-			data, err = ParsePacketGeneric[CarTelemetryData](buf)
-			if err != nil {
-				panic(err)
-			}
-		case CarStatusId:
-			data, err = ParsePacketGeneric[CarStatusData](buf)
-			if err != nil {
-				panic(err)
-			}
-		case FinalClassificationId:
-			data, err = ParsePacketGeneric[FinalClassificationData](buf)
-			if err != nil {
-				panic(err)
-			}
-		case LobbyInfoId:
-			data, err = ParsePacketGeneric[LobbyInfoData](buf)
-			if err != nil {
-				panic(err)
-			}
-		case CarDamageId:
-			data, err = ParsePacketGeneric[CarDamageData](buf)
-			if err != nil {
-				panic(err)
-			}
-		case SessionHistoryId:
-			data, err = ParsePacketGeneric[SessionHistoryData](buf)
-			if err != nil {
-				panic(err)
-			}
+		// Create a raw packet struct containing the full buffer and header.
+		// This is much faster than parsing the entire packet body.
+		data := &Raw{
+			H:    header,
+			Buf:  rawBytes,
+			Size: n,
 		}
 
-		if data != nil {
-			for _, channel := range l.loggerChannels {
-				channel <- data
-			}
+		// Send the raw packet to all logger channels.
+		for _, channel := range l.loggerChannels {
+			channel <- data
 		}
 
 		select {
 		case <-l.ctx.Done():
-			log.Println("new session will be started")
+			log.Println("context cancelled, shutting down listener")
 			break
 		default:
 		}
 	}
 
 	l.waitGroup.Wait()
+	log.Println("listener shut down gracefully")
 	return nil
 }
