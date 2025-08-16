@@ -34,7 +34,6 @@ func NewDuckDBClient(path string) (dc *DuckDBClient, err error) {
 	// Create table if not exists
 	_, err = dc.client.Exec(`
 		CREATE TABLE IF NOT EXISTS packets (
-			id BIGINT PRIMARY KEY,
 			data BLOB,
 			packet_id UINTEGER,
 			packet_type VARCHAR,
@@ -67,20 +66,19 @@ func (dc *DuckDBClient) Run() {
 	}()
 
 	for packetData := range dc.packetChan {
-		rawPacket, ok := packetData.(*packet.Raw)
-		if !ok {
-			log.Println("received non-raw packet, skipping")
+		b, err := packet.FormatPacket(packetData)
+		if err != nil {
 			continue
 		}
 
-		header := rawPacket.GetHeader()
+		header := packetData.GetHeader()
 		packetId := packet.Id(header.PacketId)
 		sessionUid := header.SessionUid
 		frameIdentifier := header.FrameIdentifier
 		playerCarIndex := header.PlayerCarIndex
 		sessionTime := header.SessionTime
 
-		_, err := dc.client.ExecContext(dc.ctx, "INSERT INTO packets (data, packet_id, packet_type, session_uid, frame_identifier, player_car_index, session_time) VALUES (?, ?, ?, ?, ?, ?, ?)", rawPacket.Buf, packetId, packet.NamesById[packetId], sessionUid, frameIdentifier, playerCarIndex, sessionTime)
+		_, err = dc.client.ExecContext(dc.ctx, "INSERT INTO packets (data, packet_id, packet_type, session_uid, frame_identifier, player_car_index, session_time) VALUES (?, ?, ?, ?, ?, ?, ?)", b, packetId, packet.NamesById[packetId], sessionUid, frameIdentifier, playerCarIndex, sessionTime)
 		if err != nil {
 			log.Println("failed to insert packet data into duckdb", err)
 			continue
