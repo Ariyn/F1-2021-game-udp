@@ -96,17 +96,16 @@ func (l *Listener) Run() (err error) {
 			continue
 		}
 
-		// Create a raw packet struct containing the full buffer and header.
-		// This is much faster than parsing the entire packet body.
-		data := &Raw{
-			H:    header,
-			Buf:  rawBytes,
-			Size: n,
+		// Parse the full packet body based on the header's packet ID.
+		packetData := l.parsePacketBody(header, rawBytes)
+		if packetData == nil {
+			// This was an unknown or failed packet type, silently ignore.
+			continue
 		}
 
-		// Send the raw packet to all logger channels.
+		// Send the parsed packet to all logger channels.
 		for _, channel := range l.loggerChannels {
-			channel <- data
+			channel <- packetData
 		}
 
 		select {
@@ -120,4 +119,70 @@ func (l *Listener) Run() (err error) {
 	l.waitGroup.Wait()
 	log.Println("listener shut down gracefully")
 	return nil
+}
+
+func (l *Listener) parsePacketBody(header Header, rawBytes []byte) Data {
+	var data Data
+	var err error
+
+	switch Id(header.PacketId) {
+	case MotionDataId:
+		var motionData MotionData
+		err = ParsePacket(rawBytes, &motionData)
+		data = &motionData
+	case SessionDataId:
+		var sessionData SessionData
+		err = ParsePacket(rawBytes, &sessionData)
+		data = &sessionData
+	case LapDataId:
+		var lapData LapData
+		err = ParsePacket(rawBytes, &lapData)
+		data = &lapData
+	case EventId:
+		var eventData EventData
+		err = ParsePacket(rawBytes, &eventData)
+		data = &eventData
+	case ParticipantsId:
+		var participantsData ParticipantData
+		err = ParsePacket(rawBytes, &participantsData)
+		data = &participantsData
+	case CarSetupsId:
+		var carSetupData CarSetupData
+		err = ParsePacket(rawBytes, &carSetupData)
+		data = &carSetupData
+	case CarTelemetryDataId:
+		var carTelemetryData CarTelemetryData
+		err = ParsePacket(rawBytes, &carTelemetryData)
+		data = &carTelemetryData
+	case CarStatusId:
+		var carStatusData CarStatusData
+		err = ParsePacket(rawBytes, &carStatusData)
+		data = &carStatusData
+	case FinalClassificationId:
+		var finalClassificationData FinalClassificationData
+		err = ParsePacket(rawBytes, &finalClassificationData)
+		data = &finalClassificationData
+	case LobbyInfoId:
+		var lobbyInfoData LobbyInfoData
+		err = ParsePacket(rawBytes, &lobbyInfoData)
+		data = &lobbyInfoData
+	case CarDamageId:
+		var carDamageData CarDamageData
+		err = ParsePacket(rawBytes, &carDamageData)
+		data = &carDamageData
+	case SessionHistoryId:
+		var sessionHistoryData SessionHistoryData
+		err = ParsePacket(rawBytes, &sessionHistoryData)
+		data = &sessionHistoryData
+	default:
+		log.Printf("unknown packet id: %d", header.PacketId)
+		return nil
+	}
+
+	if err != nil {
+		log.Printf("failed to parse packet body for id %d: %v", header.PacketId, err)
+		return nil
+	}
+
+	return data
 }
