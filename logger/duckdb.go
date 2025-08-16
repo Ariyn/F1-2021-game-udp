@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/ariyn/F1-2021-game-udp/packet"
-	_ "github.com/marcboeker/go-duckdb"
 	"log"
 	"sync"
+
+	"github.com/ariyn/F1-2021-game-udp/packet"
+	_ "github.com/marcboeker/go-duckdb/v2"
 )
 
 var _ packet.Logger = (*DuckDBClient)(nil)
