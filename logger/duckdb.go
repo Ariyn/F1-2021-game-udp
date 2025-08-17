@@ -45,7 +45,7 @@ func NewDuckDBClient(path string) (dc *DuckDBClient, err error) {
 			player_car_index UINTEGER,
 			session_time FLOAT,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		)
+		);
 
 		CREATE TABLE IF NOT EXISTS raw (
 			data BLOB,
@@ -91,6 +91,31 @@ func (dc *DuckDBClient) Run() {
 		for {
 			select {
 			case <-dc.ctx.Done():
+				tx, err := dc.client.BeginTx(dc.ctx, nil)
+				if err != nil {
+					mu.Unlock()
+					log.Println("failed to begin transaction for raw packet insert", err)
+					continue
+				}
+				stmt, err := tx.PrepareContext(dc.ctx, "INSERT INTO raw (data) VALUES (?)")
+				if err != nil {
+					tx.Rollback()
+					mu.Unlock()
+					log.Println("failed to prepare statement for raw packet insert", err)
+					continue
+				}
+				for _, b := range buffer {
+					_, err := stmt.Exec(b)
+					if err != nil {
+						log.Println("failed to insert raw packet data into duckdb", err)
+					}
+				}
+				stmt.Close()
+				err = tx.Commit()
+				if err != nil {
+					mu.Unlock()
+					log.Println("failed to commit transaction for raw packet insert", err)
+				}
 				return
 			default:
 			}
