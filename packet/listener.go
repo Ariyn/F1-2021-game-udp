@@ -186,3 +186,97 @@ func (l *Listener) parsePacketBody(header Header, rawBytes []byte) Data {
 
 	return data
 }
+
+type RawListener struct {
+	ctx            context.Context
+	conn           net.PacketConn
+	loggers        []Logger
+	loggerChannels []chan<- []byte
+	loggerCancels  []context.CancelFunc
+	waitGroup      *sync.WaitGroup
+	started        bool
+}
+
+func NewRawListener(ctx context.Context, network, address string, loggers ...Logger) (l *RawListener, err error) {
+	l = &RawListener{
+		ctx:       ctx,
+		loggers:   loggers,
+		started:   false,
+		waitGroup: &sync.WaitGroup{},
+	}
+
+	l.waitGroup.Add(len(loggers))
+	for _, logger := range loggers {
+		channel, cancel, err := logger.RawWriter(ctx, l.waitGroup)
+		if err != nil {
+			return l, err
+		}
+
+		l.loggerChannels = append(l.loggerChannels, channel)
+		l.loggerCancels = append(l.loggerCancels, cancel)
+	}
+
+	l.conn, err = net.ListenPacket(network, address)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func (l *RawListener) Run() (err error) {
+	defer l.conn.Close()
+	defer func() {
+		for _, cancel := range l.loggerCancels {
+			cancel()
+		}
+	}()
+	defer func() {
+		for _, channel := range l.loggerChannels {
+			close(channel)
+		}
+	}()
+
+	for _, logger := range l.loggers {
+		go logger.Run()
+	}
+
+	for {
+		buf := make([]byte, 2048) // all telemetry data is under 2048 bytes.
+		n, _, err := l.conn.ReadFrom(buf)
+		if err != nil {
+			if l.ctx.Err() != nil {
+				break
+			}
+			panic(err)
+		}
+
+		if n == 0 {
+			log.Println("buffer size is 0...")
+			continue
+		}
+		if !l.started {
+			log.Println("started!")
+			l.started = true
+		}
+
+		// It's crucial to slice the buffer to the actual number of bytes read.
+		rawBytes := buf[:n]
+
+		// Send the parsed packet to all logger channels.
+		for _, channel := range l.loggerChannels {
+			channel <- rawBytes
+		}
+
+		select {
+		case <-l.ctx.Done():
+			log.Println("context cancelled, shutting down listener")
+			return nil
+		default:
+		}
+	}
+
+	l.waitGroup.Wait()
+	log.Println("listener shut down gracefully")
+	return nil
+}

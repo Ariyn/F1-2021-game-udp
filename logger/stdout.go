@@ -3,9 +3,10 @@ package logger
 import (
 	"context"
 	"fmt"
-	"github.com/ariyn/F1-2021-game-udp/packet"
 	"sync"
 	"time"
+
+	"github.com/ariyn/F1-2021-game-udp/packet"
 )
 
 var _ packet.Logger = (*StdoutClient)(nil)
@@ -56,6 +57,11 @@ type StdoutClient struct {
 	lastLapData      packet.Lap
 	participants     []participant
 	grids            []*participant
+}
+
+// RawWriter implements packet.Logger.
+func (*StdoutClient) RawWriter(ctx context.Context, wg *sync.WaitGroup) (c chan<- []byte, cancel context.CancelFunc, err error) {
+	panic("unimplemented")
 }
 
 func (c *StdoutClient) Writer(ctx context.Context, wg *sync.WaitGroup) (channel chan<- packet.Data, cancel context.CancelFunc, err error) {

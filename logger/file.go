@@ -2,12 +2,13 @@ package logger
 
 import (
 	"context"
-	"github.com/ariyn/F1-2021-game-udp/packet"
 	"log"
 	"os"
 	"path"
 	"sync"
 	"time"
+
+	"github.com/ariyn/F1-2021-game-udp/packet"
 )
 
 var _ packet.Logger = (*FileClient)(nil)
@@ -19,6 +20,11 @@ type FileClient struct {
 	Timestamp  time.Time
 	file       *os.File
 	packetChan chan packet.Data
+}
+
+// RawWriter implements packet.Logger.
+func (fc *FileClient) RawWriter(ctx context.Context, wg *sync.WaitGroup) (c chan<- []byte, cancel context.CancelFunc, err error) {
+	panic("unimplemented")
 }
 
 func NewFileClient(p string, t time.Time) (fc *FileClient, err error) {

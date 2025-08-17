@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/ariyn/F1-2021-game-udp/packet"
 	"log"
 	"sync"
+
+	"github.com/ariyn/F1-2021-game-udp/packet"
 
 	_ "github.com/lib/pq"
 )
@@ -19,6 +20,11 @@ type SqlClient struct {
 	Url        string
 	client     *sql.DB
 	packetChan chan packet.Data
+}
+
+// RawWriter implements packet.Logger.
+func (sc *SqlClient) RawWriter(ctx context.Context, wg *sync.WaitGroup) (c chan<- []byte, cancel context.CancelFunc, err error) {
+	panic("unimplemented")
 }
 
 func NewSqlClient(url string) (sc *SqlClient, err error) {

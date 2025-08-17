@@ -3,11 +3,12 @@ package logger
 import (
 	"context"
 	"encoding/json"
-	"github.com/ariyn/F1-2021-game-udp/packet"
-	"github.com/redis/go-redis/v9"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/ariyn/F1-2021-game-udp/packet"
+	"github.com/redis/go-redis/v9"
 )
 
 type LapHistory struct {
@@ -32,6 +33,11 @@ type RedisClient struct {
 	currentLapDelta          map[int]float64
 	lastLapDelta             map[int]float64
 	currentSessionUid        string
+}
+
+// RawWriter implements packet.Logger.
+func (r *RedisClient) RawWriter(ctx context.Context, wg *sync.WaitGroup) (c chan<- []byte, cancel context.CancelFunc, err error) {
+	panic("unimplemented")
 }
 
 func (r *RedisClient) updateCurrentSessionUid(sessionUid uint64) error {

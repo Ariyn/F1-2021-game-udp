@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+
 	"github.com/ariyn/F1-2021-game-udp/logger"
 	"github.com/ariyn/F1-2021-game-udp/packet"
 	"github.com/joho/godotenv"
-	"log"
 )
 
 func init() {
@@ -19,7 +20,7 @@ func main() {
 		panic(err)
 	}
 
-	listener, err := packet.NewListener(context.Background(), packet.DefaultNetwork, packet.DefaultAddress, duckDBClient)
+	listener, err := packet.NewRawListener(context.Background(), packet.DefaultNetwork, packet.DefaultAddress, duckDBClient)
 	if err != nil {
 		log.Fatal(err)
 	}
