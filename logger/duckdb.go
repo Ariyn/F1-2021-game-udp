@@ -24,8 +24,9 @@ type DuckDBClient struct {
 
 func NewDuckDBClient(path string) (dc *DuckDBClient, err error) {
 	dc = &DuckDBClient{
-		Path:       path,
-		packetChan: make(chan packet.Data, 1000),
+		Path:          path,
+		packetChan:    make(chan packet.Data, 1000),
+		rawPacketChan: make(chan []byte, 1000),
 	}
 
 	dc.client, err = sql.Open("duckdb", dc.Path)
@@ -80,9 +81,61 @@ func (dc *DuckDBClient) Run() {
 		}
 	}()
 
+	buffer := make([]([]byte), 10000)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-dc.ctx.Done():
+				return
+			default:
+			}
+
+			mu.Lock()
+			if len(buffer) > 3000 {
+				tx, err := dc.client.BeginTx(dc.ctx, nil)
+				if err != nil {
+					mu.Unlock()
+					log.Println("failed to begin transaction for raw packet insert", err)
+					continue
+				}
+				stmt, err := tx.PrepareContext(dc.ctx, "INSERT INTO raw (data) VALUES (?)")
+				if err != nil {
+					tx.Rollback()
+					mu.Unlock()
+					log.Println("failed to prepare statement for raw packet insert", err)
+					continue
+				}
+				for _, b := range buffer {
+					_, err := stmt.Exec(b)
+					if err != nil {
+						log.Println("failed to insert raw packet data into duckdb", err)
+						// continue inserting others
+					}
+				}
+				stmt.Close()
+				err = tx.Commit()
+
+				if err != nil {
+					mu.Unlock()
+					log.Println("failed to commit transaction for raw packet insert", err)
+					continue
+				}
+
+				buffer = buffer[:0]
+			}
+			mu.Unlock()
+		}
+	}()
+
 	for {
 		select {
 		case <-dc.ctx.Done():
+			wg.Wait()
 			return
 		case packetData := <-dc.packetChan:
 			b, err := packet.FormatPacket(packetData)
@@ -103,11 +156,9 @@ func (dc *DuckDBClient) Run() {
 				continue
 			}
 		case bytes := <-dc.rawPacketChan:
-			_, err := dc.client.ExecContext(dc.ctx, "INSERT INTO raw (data) VALUES (?)", bytes)
-			if err != nil {
-				log.Println("failed to insert raw packet data into duckdb", err)
-				continue
-			}
+			mu.Lock()
+			buffer = append(buffer, bytes)
+			mu.Unlock()
 		}
 	}
 }
